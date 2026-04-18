@@ -9,38 +9,75 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PagosNuevoRouteImport } from './routes/pagos.nuevo'
+import { Route as ObrasNuevaRouteImport } from './routes/obras.nueva'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PagosNuevoRoute = PagosNuevoRouteImport.update({
+  id: '/pagos/nuevo',
+  path: '/pagos/nuevo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ObrasNuevaRoute = ObrasNuevaRouteImport.update({
+  id: '/obras/nueva',
+  path: '/obras/nueva',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/obras/nueva': typeof ObrasNuevaRoute
+  '/pagos/nuevo': typeof PagosNuevoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/obras/nueva': typeof ObrasNuevaRoute
+  '/pagos/nuevo': typeof PagosNuevoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/obras/nueva': typeof ObrasNuevaRoute
+  '/pagos/nuevo': typeof PagosNuevoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/auth' | '/obras/nueva' | '/pagos/nuevo'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/auth' | '/obras/nueva' | '/pagos/nuevo'
+  id: '__root__' | '/' | '/auth' | '/obras/nueva' | '/pagos/nuevo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
+  ObrasNuevaRoute: typeof ObrasNuevaRoute
+  PagosNuevoRoute: typeof PagosNuevoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +85,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pagos/nuevo': {
+      id: '/pagos/nuevo'
+      path: '/pagos/nuevo'
+      fullPath: '/pagos/nuevo'
+      preLoaderRoute: typeof PagosNuevoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/obras/nueva': {
+      id: '/obras/nueva'
+      path: '/obras/nueva'
+      fullPath: '/obras/nueva'
+      preLoaderRoute: typeof ObrasNuevaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
+  ObrasNuevaRoute: ObrasNuevaRoute,
+  PagosNuevoRoute: PagosNuevoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
