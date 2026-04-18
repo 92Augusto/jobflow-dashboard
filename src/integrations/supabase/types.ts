@@ -14,7 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      obras: {
+        Row: {
+          cliente: string
+          created_at: string
+          descripcion: string
+          estado: Database["public"]["Enums"]["obra_estado"]
+          fecha_inicio: string
+          id: string
+          notas: string | null
+          presupuesto: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cliente: string
+          created_at?: string
+          descripcion: string
+          estado?: Database["public"]["Enums"]["obra_estado"]
+          fecha_inicio?: string
+          id?: string
+          notas?: string | null
+          presupuesto?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cliente?: string
+          created_at?: string
+          descripcion?: string
+          estado?: Database["public"]["Enums"]["obra_estado"]
+          fecha_inicio?: string
+          id?: string
+          notas?: string | null
+          presupuesto?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pagos: {
+        Row: {
+          created_at: string
+          fecha_pago: string
+          id: string
+          monto: number
+          numero_pago: number
+          obra_id: string
+          observaciones: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fecha_pago?: string
+          id?: string
+          monto?: number
+          numero_pago?: number
+          obra_id: string
+          observaciones?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fecha_pago?: string
+          id?: string
+          monto?: number
+          numero_pago?: number
+          obra_id?: string
+          observaciones?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagos_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +105,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      obra_estado: "en_curso" | "completado" | "pendiente"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +232,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      obra_estado: ["en_curso", "completado", "pendiente"],
+    },
   },
 } as const
