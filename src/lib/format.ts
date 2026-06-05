@@ -1,7 +1,7 @@
 export const fmtMoney = (n: number) =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
-    currency: "USD",
+    currency: "ARS",
     minimumFractionDigits: 2,
   }).format(n || 0);
 
