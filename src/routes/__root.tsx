@@ -77,6 +77,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              window.addEventListener('error', function(e) {
+                alert('CRASH: ' + e.message);
+              });
+              window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.message && e.reason.message.includes('offline')) return;
+                alert('PROMISE: ' + (e.reason ? e.reason.message || e.reason : 'unknown'));
+              });
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
                   navigator.serviceWorker.register('/sw.js', { scope: '/' })

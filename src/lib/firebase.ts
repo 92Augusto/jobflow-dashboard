@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: "AIzaSyCUYJ9SMnbvqT4z9zlVXe-dfyNpgQKKfc8",
@@ -15,16 +15,7 @@ const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 
-let dbInstance
-try {
-  dbInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    })
-  })
-} catch (e) {
-  console.warn('Fallback to default memory cache due to offline strict mode', e)
-  dbInstance = getFirestore(app)
-}
-
-export const db = dbInstance
+// Usamos cache simple para evitar crashes de IndexDB en iOS PWA (Modo Avión)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
+})
