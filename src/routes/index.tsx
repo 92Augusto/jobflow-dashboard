@@ -344,14 +344,15 @@ function EditarObraDialog({ obra }: { obra: Obra }) {
           <F label="Presupuesto ($)"><Input type="number" value={form.presupuesto} onChange={e => set('presupuesto', e.target.value)} /></F>
           <F label="Fecha de inicio"><Input type="date" value={form.fechaInicio} onChange={e => set('fechaInicio', e.target.value)} /></F>
           <F label="Estado">
-            <Select value={form.estado} onValueChange={v => set('estado', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="en_curso">En curso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
-              </SelectContent>
-            </Select>
+            <select 
+              value={form.estado} 
+              onChange={e => set('estado', e.target.value)}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="pendiente">Pendiente</option>
+              <option value="en_curso">En curso</option>
+              <option value="completado">Completado</option>
+            </select>
           </F>
           <F label="Notas"><Textarea value={form.notas} onChange={e => set('notas', e.target.value)} rows={2} /></F>
           <Button onClick={guardar} disabled={saving} style={{ background: '#0F6E56', color: 'white', width: '100%' }}>
@@ -550,14 +551,15 @@ function NuevaObraDialog({ userId }: { userId: string }) {
           <F label="Presupuesto ($) *"><Input type="number" value={form.presupuesto} onChange={e => set('presupuesto', e.target.value)} placeholder="0" /></F>
           <F label="Fecha de inicio"><Input type="date" value={form.fechaInicio} onChange={e => set('fechaInicio', e.target.value)} /></F>
           <F label="Estado">
-            <Select value={form.estado} onValueChange={v => set('estado', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="en_curso">En curso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
-              </SelectContent>
-            </Select>
+            <select 
+              value={form.estado} 
+              onChange={e => set('estado', e.target.value)}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="pendiente">Pendiente</option>
+              <option value="en_curso">En curso</option>
+              <option value="completado">Completado</option>
+            </select>
           </F>
           <F label="Notas"><Textarea value={form.notas} onChange={e => set('notas', e.target.value)} placeholder="Notas adicionales" rows={2} /></F>
           <Button onClick={guardar} disabled={saving} style={{ background: '#0F6E56', color: 'white', width: '100%' }}>

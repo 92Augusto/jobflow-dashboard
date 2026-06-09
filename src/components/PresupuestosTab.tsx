@@ -7,9 +7,6 @@ import { db } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Save, FileText, Calculator, ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 
@@ -578,7 +575,11 @@ export function PresupuestosTab({ userId }: { userId: string }) {
 
   useEffect(() => {
     const q = query(collection(db, 'presupuestos'), where('userId', '==', userId), orderBy('createdAt', 'desc'))
-    return onSnapshot(q, snap => setPresupuestos(snap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto))))
+    return onSnapshot(
+      q, 
+      snap => setPresupuestos(snap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto))),
+      err => console.error("Firestore offline sync warning:", err)
+    )
   }, [userId])
 
   function agregarAdicional(tipo: Adicional['tipo']) {
@@ -648,19 +649,20 @@ export function PresupuestosTab({ userId }: { userId: string }) {
           {/* Tipo de trabajo */}
           <div className="space-y-1.5">
             <Label>Tipo de trabajo *</Label>
-            <Select value={tipoId} onValueChange={id => { setTipoId(id); setParams({}); setAdicionales([]); setMostrarPagos(false) }}>
-              <SelectTrigger><SelectValue placeholder="Seleccioná el tipo de trabajo…" /></SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map(cat => (
-                  <div key={cat}>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/40">{cat}</div>
-                    {TIPOS.filter(t => t.category === cat).map(tipo => (
-                      <SelectItem key={tipo.id} value={tipo.id} className="pl-4">{tipo.label}</SelectItem>
-                    ))}
-                  </div>
-                ))}
-              </SelectContent>
-            </Select>
+            <select 
+              value={tipoId} 
+              onChange={e => { setTipoId(e.target.value); setParams({}); setAdicionales([]); setMostrarPagos(false) }}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="" disabled>Seleccioná el tipo de trabajo…</option>
+              {CATEGORIES.map(cat => (
+                <optgroup key={cat} label={cat}>
+                  {TIPOS.filter(t => t.category === cat).map(tipo => (
+                    <option key={tipo.id} value={tipo.id}>{tipo.label}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
           </div>
 
           {/* Inputs dinámicos */}
