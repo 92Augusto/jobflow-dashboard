@@ -599,22 +599,27 @@ export function PresupuestosTab({ userId }: { userId: string }) {
     setAdicionales(prev => prev.filter(a => a.id !== id))
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (!canSave || !selectedTipo) return
     setSaving(true)
     try {
-      await addDoc(collection(db, 'presupuestos'), {
+      addDoc(collection(db, 'presupuestos'), {
         userId, clienteNombre: clienteNombre.trim(),
         clienteDireccion: clienteDireccion.trim(),
         tipoTrabajoId: selectedTipo.id, tipoTrabajoLabel: selectedTipo.label,
         honorario, adicionales: totalAdicionales,
         aportesCpach, gastoAdmin: GASTO_MIN_ADMIN, totalFinal,
         createdAt: serverTimestamp(),
-      })
+      }).catch(e => console.error("Error background sync:", e))
+      
       setClienteNombre(''); setClienteDireccion('')
       setTipoId(''); setParams({}); setAdicionales([])
-    } catch (e: any) { setError('Error al guardar: ' + e.message) }
-    setSaving(false)
+      setMostrarPagos(false)
+    } catch (e: any) { 
+      setError('Error al preparar guardado: ' + e.message) 
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

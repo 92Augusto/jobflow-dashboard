@@ -311,18 +311,21 @@ function EditarObraDialog({ obra }: { obra: Obra }) {
   const [error, setError] = useState('')
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
-  async function guardar() {
+  function guardar() {
     if (!form.cliente.trim()) { setError('El campo Cliente es obligatorio.'); return }
     setError(''); setSaving(true)
     try {
-      await updateDoc(doc(db, 'obras', obra.id), {
+      updateDoc(doc(db, 'obras', obra.id), {
         cliente: form.cliente.trim(), descripcion: form.descripcion.trim(),
         presupuesto: parseFloat(form.presupuesto) || 0,
         fechaInicio: form.fechaInicio, estado: form.estado, notas: form.notas.trim(),
-      })
+      }).catch(e => console.error("Error background sync:", e))
       setOpen(false)
-    } catch (e: any) { setError('Error: ' + e.message) }
-    setSaving(false)
+    } catch (e: any) { 
+      setError('Error al preparar actualización: ' + e.message) 
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -453,22 +456,25 @@ function NuevoPagoDialog({ userId, obraId, obraLabel, allPagos }: { userId: stri
   const [error, setError] = useState('')
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
-  async function guardar() {
+  function guardar() {
     if (!form.monto) { setError('El campo Monto es obligatorio.'); return }
     setError(''); setSaving(true)
     try {
-      await addDoc(collection(db, 'pagos'), {
+      addDoc(collection(db, 'pagos'), {
         userId, obraId,
         numeroPago: allPagos.filter(p => p.obraId === obraId).length + 1,
         fechaPago: form.fechaPago,
         monto: parseFloat(form.monto) || 0,
         observaciones: form.observaciones.trim(),
         createdAt: serverTimestamp(),
-      })
+      }).catch(e => console.error("Error background sync:", e))
       setForm({ fechaPago: '', monto: '', observaciones: '' })
       setOpen(false)
-    } catch (e: any) { setError('Error al guardar: ' + e.message) }
-    setSaving(false)
+    } catch (e: any) { 
+      setError('Error al preparar pago: ' + e.message) 
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -508,21 +514,24 @@ function NuevaObraDialog({ userId }: { userId: string }) {
   const [error, setError] = useState('')
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
-  async function guardar() {
+  function guardar() {
     if (!form.cliente.trim()) { setError('El campo Cliente es obligatorio.'); return }
     if (!form.presupuesto) { setError('El campo Presupuesto es obligatorio.'); return }
     setError(''); setSaving(true)
     try {
-      await addDoc(collection(db, 'obras'), {
+      addDoc(collection(db, 'obras'), {
         userId, cliente: form.cliente.trim(), descripcion: form.descripcion.trim(),
         presupuesto: parseFloat(form.presupuesto) || 0,
         fechaInicio: form.fechaInicio, estado: form.estado,
         notas: form.notas.trim(), createdAt: serverTimestamp(),
-      })
+      }).catch(e => console.error("Error background sync:", e))
       setForm({ cliente: '', descripcion: '', presupuesto: '', fechaInicio: '', estado: 'pendiente', notas: '' })
       setOpen(false)
-    } catch (e: any) { setError('Error al guardar: ' + e.message) }
-    setSaving(false)
+    } catch (e: any) { 
+      setError('Error al preparar obra: ' + e.message) 
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
