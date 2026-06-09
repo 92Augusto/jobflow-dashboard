@@ -38,11 +38,25 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "theme-color", content: "#0F6E56" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.webmanifest",
+      },
+      {
+        rel: "icon",
+        href: "/favicon.ico",
+        sizes: "any",
+      },
+      {
+        rel: "apple-touch-icon",
+        href: "/apple-touch-icon.png",
       },
     ],
   }),
@@ -60,6 +74,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
       <body>
         {children}
         <Scripts />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                })
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
