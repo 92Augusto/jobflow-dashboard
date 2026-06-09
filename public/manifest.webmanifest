@@ -1,0 +1,16 @@
+{
+  "name": "Jobflow Dashboard",
+  "short_name": "Jobflow",
+  "description": "Dashboard de Presupuestos y Mensuras",
+  "theme_color": "#0F6E56",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/"
+}
