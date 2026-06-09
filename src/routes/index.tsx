@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
-import { Pencil, Trash2, Plus, ChevronDown, ChevronUp, Clock, LogOut, Shield } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronDown, ChevronUp, Clock, LogOut, Shield, Eye, EyeOff } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { PresupuestosTab } from '@/components/PresupuestosTab'
 import { ExpedienteTab } from '@/components/ExpedienteTab'
@@ -107,6 +107,7 @@ function Dashboard({ user }: { user: User }) {
   const [pagos, setPagos] = useState<Pago[]>([])
   const [dbError, setDbError] = useState('')
   const [mostrarAviso, setMostrarAviso] = useState(false)
+  const [ocultarMontos, setOcultarMontos] = useState(false)
   const [timerRef] = useState<{ logout: any; aviso: any }>({ logout: null, aviso: null })
 
   const handleLogout = useCallback(async () => {
@@ -180,13 +181,26 @@ function Dashboard({ user }: { user: User }) {
           <span>Sesión segura · Auto-cierre por inactividad a los 20 min</span>
         </div>
 
+        {/* Header con botón para ocultar montos */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setOcultarMontos(v => !v)} 
+            style={{ fontSize: '12px', color: 'var(--color-text-secondary)', padding: '0 8px', height: '28px' }}
+          >
+            {ocultarMontos ? <Eye className="h-4 w-4 mr-1.5" /> : <EyeOff className="h-4 w-4 mr-1.5" />}
+            {ocultarMontos ? 'Mostrar montos' : 'Ocultar montos'}
+          </Button>
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {[
             { label: 'Obras', value: obras.length.toString(), color: undefined },
-            { label: 'Presupuestado', value: fmt(totalPresupuestado), color: undefined },
-            { label: 'Cobrado', value: fmt(totalCobrado), color: '#1D9E75' },
-            { label: 'Deuda', value: fmt(deuda), color: deuda > 0 ? '#D85A30' : '#1D9E75' },
+            { label: 'Presupuestado', value: ocultarMontos ? '***' : fmt(totalPresupuestado), color: undefined },
+            { label: 'Cobrado', value: ocultarMontos ? '***' : fmt(totalCobrado), color: '#1D9E75' },
+            { label: 'Deuda', value: ocultarMontos ? '***' : fmt(deuda), color: deuda > 0 && !ocultarMontos ? '#D85A30' : '#1D9E75' },
           ].map(stat => (
             <div key={stat.label} style={S.statCard}>
               <div style={S.statLabel}>{stat.label}</div>

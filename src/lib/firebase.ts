@@ -15,9 +15,16 @@ const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 
-// Enable offline persistence with multi-tab support
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
+let cacheConfig
+try {
+  cacheConfig = persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
+} catch (e) {
+  console.warn('Fallback to single tab cache', e)
+  cacheConfig = persistentLocalCache()
+}
+
+export const db = initializeFirestore(app, {
+  localCache: cacheConfig
 })
