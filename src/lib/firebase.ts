@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: "AIzaSyCUYJ9SMnbvqT4z9zlVXe-dfyNpgQKKfc8",
@@ -15,16 +15,16 @@ const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 
-let cacheConfig
+let dbInstance
 try {
-  cacheConfig = persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
+  dbInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
   })
 } catch (e) {
-  console.warn('Fallback to single tab cache', e)
-  cacheConfig = persistentLocalCache()
+  console.warn('Fallback to default memory cache due to offline strict mode', e)
+  dbInstance = getFirestore(app)
 }
 
-export const db = initializeFirestore(app, {
-  localCache: cacheConfig
-})
+export const db = dbInstance
