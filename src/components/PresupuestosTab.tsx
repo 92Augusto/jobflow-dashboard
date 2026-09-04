@@ -15,146 +15,151 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
 
 const APORTES_CPACH_PCT = 0.04
-const GASTO_MIN_ADMIN = 19878
+const GASTO_MIN_ADMIN = 23167 // Actualizado según tabla CPACH 01/10/2026 al 31/01/2027 ($23.167)
+const SMVM_VIGENTE = 391200   // SMVM Vigente Octubre 2026 ($391.200)
 
-// ─── CÁLCULOS BASE (verificados contra PDF) ───────────────────────────────────
+// ─── CÁLCULOS BASE (verificados contra PDF CPACH 01/10/2026 - 31/01/2027) ──────
 function calcDeslinde11(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 496951.56
-  if (n <= 5)  return 496951.56  + (n - 1) * (496951.56  * 0.30)
-  if (n <= 10) return 1093293.43 + (n - 5) * (1093293.43 * 0.16)
-  if (n <= 20) return 1967928.18 + (n - 10) * (1967928.18 * 0.09)
-  return 3739063.54 + (n - 20) * (1967928.18 * 0.09)
+  if (n === 1) return 579181.99
+  if (n <= 5)  return 579181.99  + (n - 1) * (579181.99  * 0.30)
+  if (n <= 10) return 1274200.38 + (n - 5) * (1274200.38 * 0.16)
+  if (n <= 20) return 2293560.68 + (n - 10) * (2293560.68 * 0.09)
+  return 4357765.30 + (n - 20) * (2293560.68 * 0.09)
 }
 function calcDeslinde12(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 372713.67
-  if (n <= 5)  return 372713.67  + (n - 1) * (372713.67  * 0.30)
-  if (n <= 10) return 819970.08  + (n - 5) * (819970.08  * 0.16)
-  if (n <= 20) return 1475946.14 + (n - 10) * (1475946.14 * 0.09)
-  return 2804297.66 + (n - 20) * (1475946.14 * 0.09)
+  if (n === 1) return 434386.49
+  if (n <= 5)  return 434386.49  + (n - 1) * (434386.49  * 0.30)
+  if (n <= 10) return 955650.28  + (n - 5) * (955650.28  * 0.16)
+  if (n <= 20) return 1720170.51 + (n - 10) * (1720170.51 * 0.09)
+  return 3268323.97 + (n - 20) * (1720170.51 * 0.09)
 }
 function calcMensuraUrb21(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 777453.11
-  if (n <= 5)   return 777453.11   + (n - 1)  * (777453.11   * 0.20)
-  if (n <= 10)  return 1399415.60  + (n - 5)  * (1399415.60  * 0.16)
-  if (n <= 20)  return 2518948.07  + (n - 10) * (2518948.07  * 0.09)
-  if (n <= 50)  return 4786001.34  + (n - 20) * (4786001.34  * 0.04)
-  if (n <= 100) return 10529202.94 + (n - 50) * (10529202.94 * 0.015)
-  if (n <= 200) return 18426105.15 + (n - 100) * (18426105.15 * 0.008)
-  if (n <= 500) return 33166989.26 + (n - 200) * (33166989.26 * 0.004)
-  return 72967376.38 + (n - 500) * (72967376.38 * 0.0016)
+  if (n === 1) return 906098.05
+  if (n <= 5)   return 906098.05   + (n - 1)  * (906098.05   * 0.20)
+  if (n <= 10)  return 1630976.48  + (n - 5)  * (1630976.48  * 0.16)
+  if (n <= 20)  return 2935757.67  + (n - 10) * (2935757.67  * 0.09)
+  if (n <= 50)  return 5577939.58  + (n - 20) * (5577939.58  * 0.04)
+  if (n <= 100) return 12271467.07 + (n - 50) * (12271467.07 * 0.015)
+  if (n <= 200) return 21475067.37 + (n - 100) * (21475067.37 * 0.008)
+  if (n <= 500) return 38655121.27 + (n - 200) * (38655121.27 * 0.004)
+  return 85041266.80 + (n - 500) * (85041266.80 * 0.0016)
 }
 function calcMensuraUrb22(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 583089.83
-  if (n <= 5)   return 583089.83   + (n - 1)  * (583089.83   * 0.20)
-  if (n <= 10)  return 1049561.70  + (n - 5)  * (1049561.70  * 0.16)
-  if (n <= 20)  return 1889211.05  + (n - 10) * (1889211.05  * 0.09)
-  if (n <= 50)  return 3589501.00  + (n - 20) * (3589501.00  * 0.04)
-  if (n <= 100) return 7896902.21  + (n - 50) * (7896902.21  * 0.01)
-  if (n <= 200) return 11845353.31 + (n - 100) * (11845353.31 * 0.0065)
-  if (n <= 500) return 19544832.96 + (n - 200) * (19544832.96 * 0.0035)
-  return 40066907.56 + (n - 500) * (40066907.56 * 0.0015)
+  if (n === 1) return 679573.54
+  if (n <= 5)   return 679573.54   + (n - 1)  * (679573.54   * 0.20)
+  if (n <= 10)  return 1223232.36  + (n - 5)  * (1223232.36  * 0.16)
+  if (n <= 20)  return 2201818.25  + (n - 10) * (2201818.25  * 0.09)
+  if (n <= 50)  return 4183454.68  + (n - 20) * (4183454.68  * 0.04)
+  if (n <= 100) return 9203600.30  + (n - 50) * (9203600.30  * 0.01)
+  if (n <= 200) return 13805400.45 + (n - 100) * (13805400.45 * 0.0065)
+  if (n <= 500) return 22778910.75 + (n - 200) * (22778910.75 * 0.0035)
+  return 46696767.04 + (n - 500) * (46696767.04 * 0.0015)
 }
 function calcPH31(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 1045438.84
-  if (n <= 5)  return 777453.11 + 370173.70 * n
-  if (n <= 10) return 777453.11 + 340430.22 * n
-  if (n <= 20) return 777453.11 + 323349.82 * n
-  if (n <= 50) return 777453.11 + 314279.53 * n
-  return 777453.11 + 307329.57 * n
+  const K = 906098.05
+  if (n === 1) return 1218427.30
+  if (n <= 5)  return K + 431426.23 * n
+  if (n <= 10) return K + 396761.11 * n
+  if (n <= 20) return K + 376854.42 * n
+  if (n <= 50) return K + 366283.27 * n
+  return K + 358183.30 * n
 }
 function calcPH32(n: number): number {
   if (n < 1) return 0
-  if (n === 1) return 816914.74
-  if (n <= 5)  return 583089.83 + 303913.49 * n
-  if (n <= 10) return 583089.83 + 276231.45 * n
-  if (n <= 20) return 583089.83 + 260623.49 * n
-  if (n <= 50) return 583089.83 + 252201.08 * n
-  return 583089.83 + 246252.38 * n
+  const K = 679573.54
+  if (n === 1) return 952089.39
+  if (n <= 5)  return K + 354201.96 * n
+  if (n <= 10) return K + 321939.38 * n
+  if (n <= 20) return K + 303748.78 * n
+  if (n <= 50) return K + 293932.71 * n
+  return K + 286999.69 * n
 }
 function calcMensuraSuburbana(ha: number): number {
   if (ha <= 0) return 0
-  if (ha <= 1)  return 929704.34
-  if (ha <= 5)  return 929704.34  + (ha - 1)  * (929704.34  * 0.02)
-  if (ha <= 10) return 1004080.69 + (ha - 5)  * (1004080.69 * 0.016)
-  if (ha <= 15) return 1084407.14 + (ha - 10) * (1084407.14 * 0.019)
-  if (ha <= 20) return 1187425.82 + (ha - 15) * (1187425.82 * 0.017)
-  if (ha <= 25) return 1288357.02 + (ha - 20) * (1288357.02 * 0.016)
-  if (ha <= 50) return 1391425.58 + (ha - 25) * (1391425.58 * 0.007)
-  return 1634925.06
+  if (ha <= 1)  return 1083542.25
+  if (ha <= 5)  return 1083542.25 + (ha - 1)  * (1083542.25 * 0.02)
+  if (ha <= 10) return 1170225.63 + (ha - 5)  * (1170225.63 * 0.016)
+  if (ha <= 15) return 1263843.68 + (ha - 10) * (1263843.68 * 0.019)
+  if (ha <= 20) return 1383908.83 + (ha - 15) * (1383908.83 * 0.017)
+  if (ha <= 25) return 1501541.08 + (ha - 20) * (1501541.08 * 0.016)
+  if (ha <= 50) return 1621664.36 + (ha - 25) * (1621664.36 * 0.007)
+  return 1905455.63
 }
 function calcMensuraRural(ha: number): number {
   if (ha <= 50)    return calcMensuraSuburbana(ha)
-  if (ha <= 100)   return 1634925.06  + (ha - 50)   * (1634925.06  * 0.005)
-  if (ha <= 250)   return 2043656.32  + (ha - 100)  * (2043656.32  * 0.004)
-  if (ha <= 500)   return 3269850.11  + (ha - 250)  * (3269850.11  * 0.0022)
-  if (ha <= 1000)  return 5068267.68  + (ha - 500)  * (5068267.68  * 0.0008)
-  if (ha <= 2500)  return 7095574.75  + (ha - 1000) * (7095574.75  * 0.0003)
-  if (ha <= 5000)  return 10288583.38 + (ha - 2500) * (10288583.38 * 0.0001)
-  if (ha <= 10000) return 12860729.23 + (ha - 5000) * (12860729.23 * 0.00008)
-  return 18005020.92 + (ha - 10000) * (18005020.92 * 0.00006)
+  if (ha <= 100)   return 1905455.63  + (ha - 50)   * (1905455.63  * 0.005)
+  if (ha <= 250)   return 2381819.53  + (ha - 100)  * (2381819.53  * 0.004)
+  if (ha <= 500)   return 3810911.26  + (ha - 250)  * (3810911.26  * 0.0022)
+  if (ha <= 1000)  return 5906912.45  + (ha - 500)  * (5906912.45  * 0.0008)
+  if (ha <= 2500)  return 8269677.42  + (ha - 1000) * (8269677.42  * 0.0003)
+  if (ha <= 5000)  return 11991032.26 + (ha - 2500) * (11991032.26 * 0.0001)
+  if (ha <= 10000) return 14988790.33 + (ha - 5000) * (14988790.33 * 0.00008)
+  return 20984306.46 + (ha - 10000) * (20984306.46 * 0.00006)
 }
 function calcSubdivisionSuburbana(ha: number, parcelas: number): number {
   const mensura = calcMensuraSuburbana(ha)
   let pct: number; let base: number
-  if (ha <= 1)       { pct = 0.25; base = 929704.34  }
-  else if (ha <= 5)  { pct = 0.22; base = 1004080.69 }
-  else if (ha <= 10) { pct = 0.18; base = 1004080.69 }
-  else if (ha <= 15) { pct = 0.15; base = 1084407.14 }
-  else if (ha <= 20) { pct = 0.13; base = 1187425.82 }
-  else if (ha <= 25) { pct = 0.11; base = 1288357.02 }
-  else               { pct = 0.10; base = 1391425.58 }
+  if (ha <= 1)       { pct = 0.25; base = 1083542.25 }
+  else if (ha <= 5)  { pct = 0.22; base = 1170225.63 }
+  else if (ha <= 10) { pct = 0.18; base = 1170225.63 }
+  else if (ha <= 15) { pct = 0.15; base = 1263843.68 }
+  else if (ha <= 20) { pct = 0.13; base = 1383908.83 }
+  else if (ha <= 25) { pct = 0.11; base = 1501541.08 }
+  else               { pct = 0.10; base = 1621664.36 }
   return mensura + parcelas * pct * base
 }
 function calcSubdivisionRural(ha: number, parcelas: number): number {
   if (ha <= 50) return calcSubdivisionSuburbana(ha, parcelas)
   const ranges = [
-    { min: 51,    max: 100,   base: 1557875.97  },
-    { min: 101,   max: 250,   base: 1947344.96  },
-    { min: 251,   max: 500,   base: 3115751.66  },
-    { min: 501,   max: 1000,  base: 4829415.31  },
-    { min: 1001,  max: 2500,  base: 6761181.35  },
-    { min: 2501,  max: 5000,  base: 9803712.92  },
-    { min: 5001,  max: 10000, base: 12254641.36 },
-    { min: 10001, max: 20000, base: 17156497.64 },
+    { min: 51,    max: 100,   base: 1815657.25, pctHa: 0.0050, parcVal: 181565.73 },
+    { min: 101,   max: 250,   base: 2269571.56, pctHa: 0.0040, parcVal: 226957.16 },
+    { min: 251,   max: 500,   base: 3631314.18, pctHa: 0.0022, parcVal: 363131.42 },
+    { min: 501,   max: 1000,  base: 5628537.25, pctHa: 0.0008, parcVal: 562853.72 },
+    { min: 1001,  max: 2500,  base: 7879952.05, pctHa: 0.0003, parcVal: 787995.20 },
+    { min: 2501,  max: 5000,  base: 11425930.43, pctHa: 0.0001, parcVal: 1142593.04 },
+    { min: 5001,  max: 10000, base: 14282413.28, pctHa: 0.00008, parcVal: 1428241.33 },
+    { min: 10001, max: 20000, base: 19995378.28, pctHa: 0.00006, parcVal: 1999537.83 },
   ]
   const r = ranges.find(r => ha >= r.min && ha <= r.max) ?? ranges[ranges.length - 1]
-  return r.base + (ha - r.min) * (r.base * 0.005) + parcelas * 0.10 * r.base
+  return r.base + (ha - r.min) * (r.base * r.pctHa) + parcelas * r.parcVal
 }
-function calcNivelacion61(ha: number): number {
+function calcNivelacion64(ha: number): number {
   if (ha <= 0)   return 0
-  if (ha <= 1)   return 1030714.35
-  if (ha <= 5)   return 1030714.35 + (ha - 1)  * (1030714.35 * 0.02)
-  if (ha <= 10)  return 1113171.50 + (ha - 5)  * (1113171.50 * 0.02)
-  if (ha <= 15)  return 1224488.65 + (ha - 10) * (1224488.65 * 0.02)
-  if (ha <= 20)  return 1346937.51 + (ha - 15) * (1346937.51 * 0.02)
-  if (ha <= 25)  return 1481631.26 + (ha - 20) * (1481631.26 * 0.02)
-  if (ha <= 50)  return 1629794.39 + (ha - 25) * (1629794.39 * 0.02)
-  if (ha <= 100) return 2444691.58 + (ha - 50) * (2444691.58 * 0.02)
-  return 4889383.16 + (ha - 100) * (4889383.16 * 0.02)
+  if (ha <= 1)   return 1201266.35
+  if (ha <= 5)   return 1201266.35 + (ha - 1)  * (1201266.35 * 0.02)
+  if (ha <= 10)  return 1297367.66 + (ha - 5)  * (1297367.66 * 0.02)
+  if (ha <= 15)  return 1427104.42 + (ha - 10) * (1427104.42 * 0.02)
+  if (ha <= 20)  return 1569814.87 + (ha - 15) * (1569814.87 * 0.02)
+  if (ha <= 25)  return 1726796.35 + (ha - 20) * (1726796.35 * 0.02)
+  if (ha <= 50)  return 1899475.99 + (ha - 25) * (1899475.99 * 0.02)
+  if (ha <= 100) return 2849213.98 + (ha - 50) * (2849213.98 * 0.02)
+  return 5698427.97 + (ha - 100) * (5698427.97 * 0.02)
 }
 function calcDrones(ha: number): number {
   if (ha <= 0)   return 0
-  if (ha <= 1)   return 471183.70
-  if (ha <= 5)   return 471183.70  + (ha - 1)   * 19564.74
-  if (ha <= 100) return 549442.66  + (ha - 5)   * 10760.58
-  if (ha <= 500) return 1571697.76 + (ha - 100) * 3912.92
-  return 3136865.76 + (ha - 500) * 2120.10
+  if (ha <= 1)   return 549150.33
+  if (ha <= 5)   return 549150.33  + (ha - 1)   * 21228.27
+  if (ha <= 100) return 634063.41  + (ha - 5)   * 11675.52
+  if (ha <= 500) return 1743237.81 + (ha - 100) * 4245.62
+  return 3441485.81 + (ha - 500) * 2300.37
 }
-function calcTasacion(valor: number): number {
-  const MIN = 88338
-  let h: number
-  if (valor <= 500000)     h = valor * 0.01
-  else if (valor <= 1e6)   h = valor * 0.0075
-  else if (valor <= 5e6)   h = valor * 0.005
-  else if (valor <= 1e7)   h = valor * 0.0035
-  else if (valor <= 1.5e7) h = valor * 0.003
-  else h = valor * 0.002
-  return Math.max(MIN, h)
+function calcTasacion(valor: number): { total: number; smvm: number; pct: number; variable: number } {
+  const smvm = SMVM_VIGENTE
+  let pct = 2.00
+  if (valor <= 500000)      pct = 3.00
+  else if (valor <= 1e6)    pct = 2.80
+  else if (valor <= 5e6)    pct = 2.60
+  else if (valor <= 1e7)    pct = 2.40
+  else if (valor <= 1.5e7)  pct = 2.20
+  else                      pct = 2.00
+  const variable = valor * (pct / 100)
+  const total = smvm + variable
+  return { total, smvm, pct, variable }
 }
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
@@ -189,17 +194,17 @@ const TIPOS: TipoTrabajo[] = [
       const desglose: LineaDetalle[] = []
       if (n === 1) { desglose.push({ concepto: '1 parcela — tarifa base', monto: total }) }
       else if (n <= 5) {
-        desglose.push({ concepto: 'Base 1 parcela', monto: 496951.56 })
-        desglose.push({ concepto: `${n - 1} parcela${n > 2 ? 's' : ''} adicional × 30% de $496.951,56`, monto: total - 496951.56 })
+        desglose.push({ concepto: 'Base 1 parcela', monto: 579181.99 })
+        desglose.push({ concepto: `${n - 1} parcela${n > 2 ? 's' : ''} adicional × 30% de $579.181,99`, monto: total - 579181.99 })
       } else if (n <= 10) {
-        desglose.push({ concepto: 'Base acumulada 5 parcelas', monto: 1093293.43 })
-        desglose.push({ concepto: `${n - 5} parcela${n > 6 ? 's' : ''} adicional × 16% de $1.093.293,43`, monto: total - 1093293.43 })
+        desglose.push({ concepto: 'Base acumulada 5 parcelas', monto: 1274200.38 })
+        desglose.push({ concepto: `${n - 5} parcela${n > 6 ? 's' : ''} adicional × 16% de $1.274.200,38`, monto: total - 1274200.38 })
       } else if (n <= 20) {
-        desglose.push({ concepto: 'Base acumulada 10 parcelas', monto: 1967928.18 })
-        desglose.push({ concepto: `${n - 10} parcelas adicionales × 9% de $1.967.928,18`, monto: total - 1967928.18 })
+        desglose.push({ concepto: 'Base acumulada 10 parcelas', monto: 2293560.68 })
+        desglose.push({ concepto: `${n - 10} parcelas adicionales × 9% de $2.293.560,68`, monto: total - 2293560.68 })
       } else {
-        desglose.push({ concepto: 'Base acumulada 20 parcelas', monto: 3739063.54 })
-        desglose.push({ concepto: `${n - 20} parcelas adicionales × 9%`, monto: total - 3739063.54 })
+        desglose.push({ concepto: 'Base acumulada 20 parcelas', monto: 4357765.30 })
+        desglose.push({ concepto: `${n - 20} parcelas adicionales × 9%`, monto: total - 4357765.30 })
       }
       return { honorario: total, desglose }
     },
@@ -210,8 +215,8 @@ const TIPOS: TipoTrabajo[] = [
     inputs: [{ key: 'parcelas', label: 'Número de parcelas', min: 1 }],
     calcular: p => {
       const n = p.parcelas ?? 0; const total = calcDeslinde12(n)
-      const desglose: LineaDetalle[] = [{ concepto: `Deslinde Resto Chaco — ${n} parcela${n > 1 ? 's' : ''}`, monto: n <= 1 ? total : 372713.67 }]
-      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 372713.67 })
+      const desglose: LineaDetalle[] = [{ concepto: `Deslinde Resto Chaco — ${n} parcela${n > 1 ? 's' : ''}`, monto: n <= 1 ? total : 434386.49 }]
+      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 434386.49 })
       return { honorario: total, desglose }
     },
   },
@@ -223,8 +228,8 @@ const TIPOS: TipoTrabajo[] = [
     nota: 'Solo parcelas ≤ 10.000 m²',
     calcular: p => {
       const n = p.parcelas ?? 0; const total = calcMensuraUrb21(n)
-      const desglose: LineaDetalle[] = [{ concepto: `Mensura urbana GR — ${n} parcela${n > 1 ? 's' : ''}`, monto: n === 1 ? total : 777453.11 }]
-      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 777453.11 })
+      const desglose: LineaDetalle[] = [{ concepto: `Mensura urbana GR — ${n} parcela${n > 1 ? 's' : ''}`, monto: n === 1 ? total : 906098.05 }]
+      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 906098.05 })
       return { honorario: total, desglose }
     },
   },
@@ -235,12 +240,12 @@ const TIPOS: TipoTrabajo[] = [
     nota: 'Solo parcelas ≤ 10.000 m²',
     calcular: p => {
       const n = p.parcelas ?? 0; const total = calcMensuraUrb22(n)
-      const desglose: LineaDetalle[] = [{ concepto: `Mensura urbana Resto Chaco — ${n} parcela${n > 1 ? 's' : ''}`, monto: n === 1 ? total : 583089.83 }]
-      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 583089.83 })
+      const desglose: LineaDetalle[] = [{ concepto: `Mensura urbana Resto Chaco — ${n} parcela${n > 1 ? 's' : ''}`, monto: n === 1 ? total : 679573.54 }]
+      if (n > 1) desglose.push({ concepto: 'Incremento por parcelas adicionales', monto: total - 679573.54 })
       return { honorario: total, desglose }
     },
   },
-  // ── VERIFICACIÓN PARCELARIA (NUEVO) ─────────────────────────────────────────
+  // ── VERIFICACIÓN PARCELARIA ─────────────────────────────────────────────────
   {
     id: 'verif_urb_gr', label: 'Verificación Parcelaria Urbana — Gran Resistencia',
     category: '2. Mensura Urbana',
@@ -285,7 +290,7 @@ const TIPOS: TipoTrabajo[] = [
       }
     },
   },
-  // ── REPLANTEO (NUEVO) ────────────────────────────────────────────────────────
+  // ── REPLANTEO ───────────────────────────────────────────────────────────────
   {
     id: 'replanteo_urb', label: 'Replanteo Urbano',
     category: '2. Mensura Urbana',
@@ -315,7 +320,7 @@ const TIPOS: TipoTrabajo[] = [
     inputs: [{ key: 'uf', label: 'Unidades Funcionales (UF)', min: 1 }],
     calcular: p => {
       const n = p.uf ?? 0; const total = calcPH31(n)
-      return { honorario: total, desglose: [{ concepto: `Base fija K`, monto: 777453.11 }, { concepto: `${n} UF × valor unitario por tramo`, monto: total - 777453.11 }] }
+      return { honorario: total, desglose: [{ concepto: `Base fija K`, monto: 906098.05 }, { concepto: `${n} UF × valor unitario por tramo`, monto: total - 906098.05 }] }
     },
   },
   {
@@ -324,7 +329,7 @@ const TIPOS: TipoTrabajo[] = [
     inputs: [{ key: 'uf', label: 'Unidades Funcionales (UF)', min: 1 }],
     calcular: p => {
       const n = p.uf ?? 0; const total = calcPH32(n)
-      return { honorario: total, desglose: [{ concepto: `Base fija K`, monto: 583089.83 }, { concepto: `${n} UF × valor unitario por tramo`, monto: total - 583089.83 }] }
+      return { honorario: total, desglose: [{ concepto: `Base fija K`, monto: 679573.54 }, { concepto: `${n} UF × valor unitario por tramo`, monto: total - 679573.54 }] }
     },
   },
   // ── RURAL / SUBURBANA ────────────────────────────────────────────────────────
@@ -346,7 +351,7 @@ const TIPOS: TipoTrabajo[] = [
       return { honorario: total, desglose: [{ concepto: `Mensura rural — ${ha} ha`, monto: total }] }
     },
   },
-  // ── VERIFICACIÓN RURAL (NUEVO) ───────────────────────────────────────────────
+  // ── VERIFICACIÓN RURAL ───────────────────────────────────────────────────────
   {
     id: 'verif_rural', label: 'Verificación Parcelaria Rural',
     category: '4. Rural y Suburbana',
@@ -369,7 +374,7 @@ const TIPOS: TipoTrabajo[] = [
       }
     },
   },
-  // ── REPLANTEO RURAL (NUEVO) ───────────────────────────────────────────────────
+  // ── REPLANTEO RURAL ──────────────────────────────────────────────────────────
   {
     id: 'replanteo_rural', label: 'Replanteo Rural',
     category: '4. Rural y Suburbana',
@@ -413,7 +418,7 @@ const TIPOS: TipoTrabajo[] = [
       return { honorario: total, desglose: [{ concepto: `Mensura rural base — ${ha} ha`, monto: mensura }, { concepto: `Subdivisión — ${pc} parcelas creadas`, monto: total - mensura }] }
     },
   },
-  // ── SUBDIVISIÓN S/MENSURA REGISTRADA (NUEVO) ─────────────────────────────────
+  // ── SUBDIVISIÓN S/MENSURA REGISTRADA ─────────────────────────────────────────
   {
     id: 'subdivision_smr', label: 'Subdivisión según Mensura Registrada',
     category: '5. Subdivisión',
@@ -422,13 +427,13 @@ const TIPOS: TipoTrabajo[] = [
     calcular: p => {
       const ha = p.hectareas ?? 0; const pc = p.parcelas_creadas ?? 0
       let pct: number; let base: number
-      if (ha <= 1)       { pct = 0.25; base = 929704.34  }
-      else if (ha <= 5)  { pct = 0.22; base = 1004080.69 }
-      else if (ha <= 10) { pct = 0.18; base = 1004080.69 }
-      else if (ha <= 15) { pct = 0.15; base = 1084407.14 }
-      else if (ha <= 20) { pct = 0.13; base = 1187425.82 }
-      else if (ha <= 25) { pct = 0.11; base = 1288357.02 }
-      else               { pct = 0.10; base = 1391425.58 }
+      if (ha <= 1)       { pct = 0.25; base = 1083542.25 }
+      else if (ha <= 5)  { pct = 0.22; base = 1170225.63 }
+      else if (ha <= 10) { pct = 0.18; base = 1170225.63 }
+      else if (ha <= 15) { pct = 0.15; base = 1263843.68 }
+      else if (ha <= 20) { pct = 0.13; base = 1383908.83 }
+      else if (ha <= 25) { pct = 0.11; base = 1501541.08 }
+      else               { pct = 0.10; base = 1621664.36 }
       const total = pc * pct * base
       return {
         honorario: total,
@@ -441,28 +446,33 @@ const TIPOS: TipoTrabajo[] = [
   },
   // ── NIVELACIONES ─────────────────────────────────────────────────────────────
   {
-    id: 'nivel_planialti', label: 'Nivelación — Planialtimétrico',
+    id: 'nivel_planta_urbana', label: 'Relevamiento Planialtimétrico Planta Urbana (6.1)',
     category: '6. Nivelaciones',
-    inputs: [{ key: 'hectareas', label: 'Superficie (Ha)', min: 0.01, step: 0.01 }],
-    calcular: p => { const total = calcNivelacion61(p.hectareas ?? 0); return { honorario: total, desglose: [{ concepto: `Nivelación planialtimétrica — ${p.hectareas} ha`, monto: total }] } },
+    inputs: [{ key: 'parcelas', label: 'Número de parcelas', min: 1 }],
+    calcular: p => {
+      const n = p.parcelas ?? 0
+      const total = n * 171609.48
+      return { honorario: total, desglose: [{ concepto: `${n} parcela${n > 1 ? 's' : ''} × $171.609,48/parcela`, monto: total }] }
+    },
   },
   {
-    id: 'nivel_perfil_long', label: 'Nivelación — Perfil Longitudinal',
+    id: 'nivel_perfil_long', label: 'Nivelación — Perfil Longitudinal (6.2)',
     category: '6. Nivelaciones',
     inputs: [{ key: 'km', label: 'Distancia (km)', min: 0.01, step: 0.01 }],
-    calcular: p => { const total = (p.km ?? 0) * 588979.63; return { honorario: total, desglose: [{ concepto: `${p.km} km × $588.979,63/km`, monto: total }] } },
+    calcular: p => { const total = (p.km ?? 0) * 686437.91; return { honorario: total, desglose: [{ concepto: `${p.km} km × $686.437,91/km`, monto: total }] } },
   },
   {
-    id: 'nivel_pl_pt', label: 'Nivelación — PL + PT + Puntos Fijos c/500m',
+    id: 'nivel_pl_pt', label: 'Nivelación — PL + PT + Puntos Fijos c/500m (6.3)',
     category: '6. Nivelaciones',
     inputs: [{ key: 'km', label: 'Distancia (km)', min: 0.01, step: 0.01 }],
-    calcular: p => { const total = (p.km ?? 0) * 530081.66; return { honorario: total, desglose: [{ concepto: `${p.km} km × $530.081,66/km`, monto: total }] } },
+    calcular: p => { const total = (p.km ?? 0) * 617794.12; return { honorario: total, desglose: [{ concepto: `${p.km} km × $617.794,12/km`, monto: total }] } },
   },
   {
-    id: 'nivel_curvas', label: 'Nivelación — Curvas de Nivel',
+    id: 'nivel_curvas', label: 'Nivelación — Curvas de Nivel por Ha (6.4)',
     category: '6. Nivelaciones',
     inputs: [{ key: 'hectareas', label: 'Superficie (Ha)', min: 0.01, step: 0.01 }],
-    calcular: p => { const total = (p.hectareas ?? 0) * 147244.91; return { honorario: total, desglose: [{ concepto: `${p.hectareas} ha × $147.244,91/ha`, monto: total }] } },
+    nota: 'Con 50 puntos en terreno firme y limpio',
+    calcular: p => { const total = calcNivelacion64(p.hectareas ?? 0); return { honorario: total, desglose: [{ concepto: `Nivelación curvas de nivel — ${p.hectareas} ha`, monto: total }] } },
   },
   // ── DRONES / GPS ─────────────────────────────────────────────────────────────
   {
@@ -473,32 +483,38 @@ const TIPOS: TipoTrabajo[] = [
   },
   {
     id: 'gps_5km',  label: 'Traslado GPS — Radio 5 km',  category: '7. Drones y GPS', inputs: [{ key: 'puntos', label: 'Número de puntos', min: 1 }],
-    calcular: p => { const total = (p.puntos ?? 0) * 250316.34; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $250.316,34/pto`, monto: total }] } },
+    calcular: p => { const total = (p.puntos ?? 0) * 291736.11; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $291.736,11/pto`, monto: total }] } },
   },
   {
     id: 'gps_10km', label: 'Traslado GPS — Radio 10 km', category: '7. Drones y GPS', inputs: [{ key: 'puntos', label: 'Número de puntos', min: 1 }],
-    calcular: p => { const total = (p.puntos ?? 0) * 353387.78; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $353.387,78/pto`, monto: total }] } },
+    calcular: p => { const total = (p.puntos ?? 0) * 411862.75; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $411.862,75/pto`, monto: total }] } },
   },
   {
     id: 'gps_30km', label: 'Traslado GPS — Radio 30 km', category: '7. Drones y GPS', inputs: [{ key: 'puntos', label: 'Número de puntos', min: 1 }],
-    calcular: p => { const total = (p.puntos ?? 0) * 530081.66; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $530.081,66/pto`, monto: total }] } },
+    calcular: p => { const total = (p.puntos ?? 0) * 617794.12; return { honorario: total, desglose: [{ concepto: `${p.puntos} puntos GPS × $617.794,12/pto`, monto: total }] } },
   },
   // ── TASACIÓN ─────────────────────────────────────────────────────────────────
   {
     id: 'tasacion', label: 'Tasación de Inmueble', category: '9. Tasación',
     inputs: [{ key: 'valor', label: 'Valor de tasación ($)', min: 0, step: 1000, placeholder: 'Ingresá el valor en pesos' }],
-    nota: 'Honorario mínimo: $88.338',
+    nota: 'Honorario Total = SMVM ($391.200) + (Valor Tasado × %)',
     calcular: p => {
-      const valor = p.valor ?? 0; const total = calcTasacion(valor)
-      const pct = valor <= 500000 ? 1.00 : valor <= 1e6 ? 0.75 : valor <= 5e6 ? 0.50 : valor <= 1e7 ? 0.35 : valor <= 1.5e7 ? 0.30 : 0.20
-      return { honorario: total, desglose: [{ concepto: `${pct}% sobre valor tasado ${fmt(valor)}`, monto: total }] }
+      const valor = p.valor ?? 0
+      const { total, smvm, pct, variable } = calcTasacion(valor)
+      return {
+        honorario: total,
+        desglose: [
+          { concepto: `Honorario mínimo orientativo (SMVM vigente)`, monto: smvm },
+          { concepto: `${pct.toFixed(2).replace('.', ',')}% sobre valor tasado (${fmt(valor)})`, monto: variable },
+        ],
+      }
     },
   },
   // ── APERTURA DE RUMBO ─────────────────────────────────────────────────────────
   {
     id: 'apertura_rumbo', label: 'Apertura de Rumbo y Desmonte (ancho 2m)', category: '12. Otros',
     inputs: [{ key: 'km', label: 'Distancia (km)', min: 0.01, step: 0.01 }],
-    calcular: p => { const total = (p.km ?? 0) * 839295.97; return { honorario: total, desglose: [{ concepto: `${p.km} km × $839.295,97/km`, monto: total }] } },
+    calcular: p => { const total = (p.km ?? 0) * 978174.03; return { honorario: total, desglose: [{ concepto: `${p.km} km × $978.174,03/km`, monto: total }] } },
   },
 ]
 
@@ -626,10 +642,13 @@ export function PresupuestosTab({ userId }: { userId: string }) {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2">
           <CardTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5" />Nuevo presupuesto
           </CardTitle>
+          <span className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2.5 py-1 rounded-full font-medium w-fit">
+            Aranceles CPACH: 01/10/2026 al 31/01/2027
+          </span>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && <div style={S.errorBox}>{error}</div>}
@@ -808,7 +827,7 @@ export function PresupuestosTab({ userId }: { userId: string }) {
                       </div>
                     ))}
                     <div style={{ background: '#FAEEDA', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#854F0B', marginTop: '8px' }}>
-                      ⚠️ <strong>Recomendación:</strong> incluir cláusula de actualización inflacionaria. Los honorarios se actualizan trimestralmente según tabla CPACH.
+                      ⚠️ <strong>Vigencia:</strong> Aranceles CPACH vigentes del 01/10/2026 al 31/01/2027 (Gasto Mínimo Administrativo: $23.167 · SMVM: $391.200). Se recomienda incluir cláusula de actualización inflacionaria.
                     </div>
                   </div>
                 )}
