@@ -470,6 +470,16 @@ export function SuperficieTab() {
     const resultado = calcularPlanilla(lados)
     if (!resultado) { setError('Error en el cálculo.'); return }
     setCalc(resultado)
+    try {
+      localStorage.setItem('jobflow_superficie_latest', JSON.stringify({
+        calc: resultado,
+        campos,
+        rumbo,
+        timestamp: Date.now()
+      }))
+    } catch (e) {
+      console.warn('No se pudo guardar en localStorage', e)
+    }
   }
 
   async function handleDescargarTodo() {
