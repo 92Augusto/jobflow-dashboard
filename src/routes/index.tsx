@@ -22,6 +22,7 @@ import { Header } from '@/components/Header'
 import { PresupuestosTab } from '@/components/PresupuestosTab'
 import { ExpedienteTab } from '@/components/ExpedienteTab'
 import { SuperficieTab } from '@/components/SuperficieTab'
+import { MapaTab, ObraGeometria } from '@/components/MapaTab'
 
 export const Route = createFileRoute('/')({
   component: IndexPage,
@@ -31,7 +32,18 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
 
 type EstadoObra = 'en_curso' | 'completado' | 'pendiente'
-type Obra = { id: string; cliente: string; descripcion: string; presupuesto: number; fechaInicio: string; estado: EstadoObra; notas: string; userId: string; createdAt?: any }
+type Obra = {
+  id: string
+  cliente: string
+  descripcion: string
+  presupuesto: number
+  fechaInicio: string
+  estado: EstadoObra
+  notas: string
+  userId: string
+  createdAt?: any
+  geometria?: ObraGeometria
+}
 type Pago = { id: string; obraId: string; numeroPago: number; fechaPago: string; monto: number; observaciones: string; userId: string }
 
 const S = {
@@ -213,11 +225,17 @@ function Dashboard({ user }: { user: User }) {
         <Tabs defaultValue="obras">
           <TabsList className="mb-4 flex overflow-x-auto justify-start w-full snap-x snap-mandatory hide-scrollbar">
             <TabsTrigger value="obras" className="snap-start shrink-0">Obras</TabsTrigger>
+            <TabsTrigger value="mapa" className="snap-start shrink-0">🗺️ Mapa</TabsTrigger>
             <TabsTrigger value="pagos" className="snap-start shrink-0">Pagos</TabsTrigger>
             <TabsTrigger value="presupuestos" className="snap-start shrink-0">Presupuestos</TabsTrigger>
             <TabsTrigger value="expediente" className="snap-start shrink-0">Expediente</TabsTrigger>
             <TabsTrigger value="superficie" className="snap-start shrink-0">Superficie</TabsTrigger>
           </TabsList>
+
+          {/* MAPA */}
+          <TabsContent value="mapa" className="mt-2">
+            <MapaTab obras={obras} userId={user.uid} />
+          </TabsContent>
 
           {/* OBRAS */}
           <TabsContent value="obras">
@@ -309,6 +327,12 @@ function ObraCard({ obra, pagos }: { obra: Obra; pagos: Pago[] }) {
         ))}
       </div>
       {obra.notas && <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{obra.notas}</div>}
+      {obra.geometria && (
+        <div style={{ marginTop: '8px', fontSize: '11px', color: '#0F6E56', display: 'flex', alignItems: 'center', gap: '4px', background: '#E1F5EE', padding: '3px 8px', borderRadius: '6px', width: 'fit-content' }}>
+          <span>🗺️ Lote georreferenciado:</span>
+          <strong>{obra.geometria.areaM2 ? `${obra.geometria.areaM2.toLocaleString('es-AR')} m² (${obra.geometria.areaHa} Ha)` : 'Ver en mapa'}</strong>
+        </div>
+      )}
     </div>
   )
 }
