@@ -35,7 +35,7 @@ function escapeXml(str: any): string {
 }
 
 function makeParagraphXml(text: string): string {
-  return `<w:p><w:pPr><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
+  return `<w:p><w:pPr><w:ind w:right="49"/><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
 }
 
 function base64ToUint8Array(b64: string): Uint8Array {
@@ -318,16 +318,24 @@ export function ExpedienteTab() {
     setComitentes(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  function formatearComitentes(): { comitente: string; dni: string; telefono: string; domicilio: string } {
-    if (comitentes.length === 1) {
-      const c = comitentes[0]
-      return { comitente: c.nombre, dni: c.dni, telefono: c.telefono, domicilio: c.domicilio }
+  function formatearComitentes(): { comitente: string; dni: string; telefono: string; domicilio: string; propietario_label: string } {
+    const validos = comitentes.filter(c => c.nombre.trim())
+    const esPlural = validos.length > 1
+    const propietario_label = esPlural ? 'PROPIETARIOS' : 'PROPIETARIO'
+
+    if (validos.length === 0) {
+      return { comitente: '', dni: '', telefono: '', domicilio: '', propietario_label: 'PROPIETARIO' }
+    }
+    if (validos.length === 1) {
+      const c = validos[0]
+      return { comitente: c.nombre.trim(), dni: c.dni.trim(), telefono: c.telefono.trim(), domicilio: c.domicilio.trim(), propietario_label }
     }
     return {
-      comitente: comitentes.map(c => c.nombre).filter(Boolean).join(' y '),
-      dni: comitentes.map(c => c.dni).filter(Boolean).join(' / '),
-      telefono: comitentes.map(c => c.telefono).filter(Boolean).join(' / '),
-      domicilio: comitentes.map(c => c.domicilio).filter(Boolean).join(' / '),
+      comitente: validos.map(c => c.nombre.trim()).join(' y '),
+      dni: validos.map(c => c.dni.trim()).filter(Boolean).join(' / '),
+      telefono: validos.map(c => c.telefono.trim()).filter(Boolean).join(' / '),
+      domicilio: validos.map(c => c.domicilio.trim()).filter(Boolean).join(' / '),
+      propietario_label,
     }
   }
 
@@ -463,7 +471,24 @@ export function ExpedienteTab() {
     setGenerating(true)
 
     try {
-      const { comitente, dni, telefono, domicilio } = formatearComitentes()
+      const { comitente, dni, telefono, domicilio, propietario_label } = formatearComitentes()
+
+      // Formato prolijo para el encabezado de ubicación
+      const rawUbicacion = (form.ubicacion || '').trim().replace(/\.+$/, '')
+      const depto = (form.departamento || '').trim().replace(/\.+$/, '')
+      let ubicacionHeader = rawUbicacion
+      if (depto && !ubicacionHeader.toLowerCase().includes(depto.toLowerCase())) {
+        ubicacionHeader += `, ${depto}`
+      }
+      if (!ubicacionHeader.toLowerCase().includes('corrientes')) {
+        ubicacionHeader += ', Corrientes'
+      }
+
+      // Rumbo de la línea dinámico
+      let rumboLinea = form.rumbo_linea
+      if (!rumboLinea && rumbo.desig && rumbo.q1 && rumbo.q2 && rumbo.g) {
+        rumboLinea = rumboCorto(rumbo.desig, rumbo.q1, parseInt(rumbo.g) || 0, parseInt(rumbo.m) || 0, rumbo.q2)
+      }
 
       // Extensión textual de superficie
       let supExtension = '........................ según Mensura.'
@@ -484,6 +509,8 @@ export function ExpedienteTab() {
           ].filter(Boolean).join('\n')
 
       const camposDocx = {
+        propietario_label,
+        ubicacion_header: ubicacionHeader,
         mes: form.mes || '……………………',
         año: form.año || new Date().getFullYear().toString(),
         objeto: form.objeto || 'Mensura Particular',
@@ -513,7 +540,7 @@ export function ExpedienteTab() {
         hora2: form.hora2,
         fecha2_texto: fechaALetras(form.fecha2),
         hora2_texto: horaALetras(form.hora2),
-        rumbo_linea: form.rumbo_linea || '—',
+        rumbo_linea: rumboLinea || form.rumbo_linea || '—',
         lados: datosTecnicos.lados,
         angulos: datosTecnicos.angulos,
         parcela: form.parcela || '1',
