@@ -121,17 +121,23 @@ export function calcularPlanilla(lados: Lado[]): Resultado | null {
 
   const X: number[] = new Array(n).fill(0)
   const Y: number[] = new Array(n).fill(0)
-  X[0] = 0
-  Y[0] = 0
-  for (let i = 1; i < n; i++) {
-    X[i] = Math.round((X[i - 1] + dx_c[i - 1]) * 100) / 100
-    Y[i] = Math.round((Y[i - 1] + dy_c[i - 1]) * 100) / 100
+  let currX = 0
+  let currY = 0
+  for (let i = 0; i < n; i++) {
+    currX = Math.round((currX + dx_c[i]) * 100) / 100
+    currY = Math.round((currY + dy_c[i]) * 100) / 100
+    X[i] = i === n - 1 ? 0 : currX
+    Y[i] = i === n - 1 ? 0 : currY
   }
+
+  // Vértices del polígono para cálculo de Gauss (P0=(0,0), P1=(X0,Y0), ..., Pn-1=(Xn-2,Yn-2))
+  const verticesX = [0, ...X.slice(0, n - 1)]
+  const verticesY = [0, ...Y.slice(0, n - 1)]
 
   const sups: number[] = new Array(n).fill(0)
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n
-    sups[i] = X[j] * Y[i] - X[i] * Y[j]
+    sups[i] = verticesX[i] * verticesY[j] - verticesX[j] * verticesY[i]
   }
   const superficie_m2 = Math.round(Math.abs(sups.reduce((a, b) => a + b, 0)) / 2 * 10000) / 10000
   const superficie_ha = Math.round(superficie_m2 / 10000 * 1000000) / 1000000
