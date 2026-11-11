@@ -2,14 +2,26 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Download, Plus, Trash2, Sparkles, ArrowRight, RotateCcw, Check } from 'lucide-react'
+import {
+  FileText, Download, Plus, Trash2, ArrowRight, RotateCcw, Check,
+  Calculator, AlertCircle, CheckCircle, RefreshCw, Compass
+} from 'lucide-react'
 import { TEMPLATE_EXPEDIENTE_UNIFICADO_B64 } from '@/lib/expedienteTemplate'
 import {
   cap, metrosLetras, anguloLetras,
   superficieM2Letras, superficieHaFormato,
   rumboCorto, fechaALetras, horaALetras
 } from '@/lib/agrimensura'
+import {
+  Lado, FilaCalculo, Resultado, Rumbo,
+  calcularPlanilla, generarLadosIniciales,
+  formatearLadosMemoria, formatearAngulosMemoria, formatearFilasPlanilla,
+  calcularPuntosSvg
+} from '@/lib/gauss'
 
 // ─── DOCX ENGINE ──────────────────────────────────────────────────────────────
 function base64ToUint8Array(b64: string): Uint8Array {
@@ -143,12 +155,52 @@ export function ExpedienteTab() {
     return [{ ...COMITENTE_VACIO }]
   })
 
-  const [superficieImportada, setSuperficieImportada] = useState<{
-    calc: any
-    campos: any
-    rumbo: any
-    timestamp: number
-  } | null>(null)
+  // ─── ESTADO DEL POLÍGONO INTEGRADO (HASTA 20 LADOS) ──────────────────────────
+  const [numLados, setNumLados] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('jobflow_expediente_poligono')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.numLados && parsed.numLados >= 3 && parsed.numLados <= 20) return parsed.numLados
+      }
+    } catch {}
+    return 4
+  })
+
+  const [formatoVertices, setFormatoVertices] = useState<'numeros' | 'letras'>(() => {
+    try {
+      const saved = localStorage.getItem('jobflow_expediente_poligono')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.formatoVertices) return parsed.formatoVertices
+      }
+    } catch {}
+    return 'numeros'
+  })
+
+  const [lados, setLados] = useState<Lado[]>(() => {
+    try {
+      const saved = localStorage.getItem('jobflow_expediente_poligono')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed?.lados) && parsed.lados.length >= 3) return parsed.lados
+      }
+    } catch {}
+    return generarLadosIniciales(4, 'numeros')
+  })
+
+  const [rumbo, setRumbo] = useState<Rumbo>(() => {
+    try {
+      const saved = localStorage.getItem('jobflow_expediente_poligono')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.rumbo) return parsed.rumbo
+      }
+    } catch {}
+    return { desig: '1-2', q1: 'S', g: '', m: '', q2: 'E' }
+  })
+
+  const [calc, setCalc] = useState<Resultado | null>(null)
 
   const [datosTecnicos, setDatosTecnicos] = useState<{
     lados: Array<{ linea: string }>
@@ -172,26 +224,19 @@ export function ExpedienteTab() {
   const [error, setError] = useState('')
   const [mensajeExito, setMensajeExito] = useState('')
 
-  // Check for recent calculation in SuperficieTab
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('jobflow_superficie_latest')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (parsed?.calc) {
-          setSuperficieImportada(parsed)
-        }
-      }
-    } catch {}
-  }, [])
-
-  // Auto-save draft
+  // Guardado automático del borrador completo
   useEffect(() => {
     try {
       localStorage.setItem('jobflow_expediente_draft', JSON.stringify(form))
       localStorage.setItem('jobflow_expediente_comitentes', JSON.stringify(comitentes))
+      localStorage.setItem('jobflow_expediente_poligono', JSON.stringify({
+        numLados,
+        formatoVertices,
+        lados,
+        rumbo,
+      }))
     } catch {}
-  }, [form, comitentes])
+  }, [form, comitentes, numLados, formatoVertices, lados, rumbo])
 
   function setF(k: keyof Form, v: string) {
     setForm(p => ({ ...p, [k]: v }))
@@ -232,77 +277,121 @@ export function ExpedienteTab() {
     }
   }
 
-  // Import calculation from SuperficieTab
-  function importarCalculoSuperficie() {
-    if (!superficieImportada?.calc) return
-    const { calc, campos, rumbo } = superficieImportada
+  // ─── CONTROL DE POLÍGONO (HASTA 20 LADOS) ───────────────────────────────────
+  function cambiarNumLados(nuevoN: number) {
+    const n = Math.max(3, Math.min(20, nuevoN))
+    setNumLados(n)
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
-    const supNum = calc.superficie_m2 || 0
-    const m2Str = supNum.toFixed(2).replace('.', ',')
-    const letrasStr = superficieM2Letras(supNum)
+    setLados(prev => {
+      return Array.from({ length: n }, (_, i) => {
+        let desig = ''
+        if (formatoVertices === 'numeros') {
+          desig = `${i + 1}-${((i + 1) % n) + 1}`
+        } else {
+          desig = `${letras[i % letras.length]}-${letras[(i + 1) % n]}`
+        }
 
-    // Build lados format
-    const ladosFormateados = (calc.filas || [])
-      .filter((f: any) => f.lado > 0)
-      .map((f: any) => ({
-        linea: `${f.desig}: ${f.lado.toFixed(2).replace('.', ',')} m – ${metrosLetras(f.lado)}.`
-      }))
-
-    // Build angulos format
-    const angulosFormateados = (calc.filas || [])
-      .filter((f: any) => f.lado > 0)
-      .map((f: any) => {
-        const vertice = f.desig.split('-')[0] || f.desig
-        const angFmt = `${f.ai_g}°${String(f.ai_m).padStart(2, '0')}'`
-        return { linea: `${vertice}: ${angFmt} – ${anguloLetras(f.ai_g, f.ai_m)}.` }
+        if (prev[i]) {
+          return { ...prev[i], desig }
+        }
+        return { desig, lado: '', ang_g: '', ang_m: '', ang_s: '0' }
       })
+    })
 
-    // Build filas for coordinates table
-    const r = (v: number | string, dec = 2) => typeof v === 'number' ? v.toFixed(dec).replace('.', ',') : (v || '0')
-    const filasTabla = (calc.filas || []).map((f: any) => ({
-      desig: f.desig,
-      lado: r(f.lado),
-      ai_g: String(f.ai_g), ai_m: String(f.ai_m), ai_s: String(f.ai_s),
-      ac_g: String(f.ac_g), ac_m: String(f.ac_m), ac_s: String(f.ac_s),
-      dx: r(f.dx), dy: r(f.dy),
-      dx_c: r(f.dx_c), dy_c: r(f.dy_c),
-      x: r(f.x), y: r(f.y),
+    if (!rumbo.desig || rumbo.desig === '1-2' || rumbo.desig === 'A-B') {
+      setRumbo(r => ({ ...r, desig: formatoVertices === 'numeros' ? '1-2' : 'A-B' }))
+    }
+  }
+
+  function cambiarFormatoVertices(nuevoFormato: 'numeros' | 'letras') {
+    setFormatoVertices(nuevoFormato)
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+    setLados(prev => {
+      const n = prev.length
+      return prev.map((l, i) => {
+        const desig = nuevoFormato === 'numeros'
+          ? `${i + 1}-${((i + 1) % n) + 1}`
+          : `${letras[i % letras.length]}-${letras[(i + 1) % n]}`
+        return { ...l, desig }
+      })
+    })
+    setRumbo(r => ({
+      ...r,
+      desig: nuevoFormato === 'numeros' ? '1-2' : 'A-B'
     }))
+  }
 
-    const rg = parseInt(rumbo?.g) || 0
-    const rm = parseInt(rumbo?.m) || 0
-    const rumboStr = rumbo?.desig && rumbo?.q1 && rumbo?.q2
+  function updateLado(index: number, campo: keyof Lado, valor: string) {
+    setLados(prev => prev.map((l, idx) => idx === index ? { ...l, [campo]: valor } : l))
+  }
+
+  function handleCalcularPoligono() {
+    setError('')
+    const conLado = lados.filter(l => parseFloat(l.lado.replace(',', '.')) > 0)
+    if (conLado.length < 3) {
+      setError('Debes ingresar al menos 3 lados con su longitud en metros.')
+      return
+    }
+
+    const res = calcularPlanilla(lados)
+    if (!res) {
+      setError('Error en el cálculo. Verificá los lados y ángulos ingresados.')
+      return
+    }
+
+    setCalc(res)
+
+    const m2Str = res.superficie_m2.toFixed(2).replace('.', ',')
+    const letrasStr = superficieM2Letras(res.superficie_m2)
+
+    const rg = parseInt(rumbo.g) || 0
+    const rm = parseInt(rumbo.m) || 0
+    const rumboStr = rumbo.desig && rumbo.q1 && rumbo.q2 && rumbo.g
       ? rumboCorto(rumbo.desig, rumbo.q1, rg, rm, rumbo.q2)
       : form.rumbo_linea
 
+    const ladosFmt = formatearLadosMemoria(res.filas)
+    const angulosFmt = formatearAngulosMemoria(res.filas)
+    const filasFmt = formatearFilasPlanilla(res.filas)
+
     setDatosTecnicos({
-      lados: ladosFormateados,
-      angulos: angulosFormateados,
-      filas: filasTabla,
-      perimetro: (calc.perimetro || 0).toFixed(2).replace('.', ','),
-      error_x: (calc.error_x || 0).toFixed(4).replace('.', ','),
-      error_y: (calc.error_y || 0).toFixed(4).replace('.', ','),
-      error_total: (calc.error_total || 0).toFixed(4).replace('.', ','),
+      lados: ladosFmt,
+      angulos: angulosFmt,
+      filas: filasFmt,
+      perimetro: res.perimetro.toFixed(2).replace('.', ','),
+      error_x: res.error_x.toFixed(4).replace('.', ','),
+      error_y: res.error_y.toFixed(4).replace('.', ','),
+      error_total: res.error_total.toFixed(4).replace('.', ','),
     })
 
     setForm(prev => ({
       ...prev,
       superficie_m2: m2Str,
       superficie_letras: letrasStr,
-      parcela: campos?.parcela || prev.parcela,
-      ubicacion: prev.ubicacion || campos?.ubicacion || '',
-      rumbo_linea: rumboStr,
+      rumbo_linea: rumboStr || prev.rumbo_linea,
     }))
 
-    if (campos?.propietario && !comitentes[0]?.nombre) {
-      setComitentes([{ ...comitentes[0], nombre: campos.propietario }])
-    }
+    // Guardar para que la pestaña Superficie también lo tenga disponible
+    try {
+      localStorage.setItem('jobflow_superficie_latest', JSON.stringify({
+        calc: res,
+        campos: {
+          propietario: comitentes[0]?.nombre || '',
+          ubicacion: form.ubicacion,
+          profesional: 'Augusto Nahuel Valentinotti',
+          parcela: form.parcela
+        },
+        rumbo,
+        timestamp: Date.now()
+      }))
+    } catch {}
 
-    setMensajeExito(`¡Se importaron ${ladosFormateados.length} lados y ${m2Str} m² desde Superficie!`)
-    setTimeout(() => setMensajeExito(''), 4000)
+    setMensajeExito(`¡Polígono de ${lados.length} lados calculado con éxito! Superficie: ${m2Str} m² (${res.superficie_ha.toFixed(4)} Ha.)`)
+    setTimeout(() => setMensajeExito(''), 4500)
   }
 
-  // Helper to copy linderos to absent linderos
+  // Helper para copiar linderos a ausentes
   function sincronizarLinderosAusentes(incluirNorte = false) {
     const lineas: string[] = []
     if (incluirNorte && form.lindero_norte.trim()) lineas.push(`NORTE: ${form.lindero_norte.trim()}`)
@@ -359,7 +448,7 @@ export function ExpedienteTab() {
         lindero_este: form.lindero_este || '………………………………',
         lindero_oeste: form.lindero_oeste || '………………………………',
         folio_matricula: form.folio_matricula || '….. .',
-        propiedad_municipal: form.propiedad_municipal || 'No se encontro.',
+        propiedad_municipal: form.propiedad_municipal || 'No se encontró.',
         partida_inmobiliaria: form.partida_inmobiliaria || '..',
         mensuras_relacionadas: form.mensuras_relacionadas || '…',
         fecha: form.fecha,
@@ -395,11 +484,17 @@ export function ExpedienteTab() {
   }
 
   function handleLimpiar() {
-    if (!window.confirm('¿Deseas reiniciar todos los campos del expediente?')) return
+    if (!window.confirm('¿Deseas reiniciar todos los campos del expediente y polígono?')) return
     localStorage.removeItem('jobflow_expediente_draft')
     localStorage.removeItem('jobflow_expediente_comitentes')
+    localStorage.removeItem('jobflow_expediente_poligono')
     setForm(FORM_INICIAL)
     setComitentes([{ ...COMITENTE_VACIO }])
+    setNumLados(4)
+    setFormatoVertices('numeros')
+    setLados(generarLadosIniciales(4, 'numeros'))
+    setRumbo({ desig: '1-2', q1: 'S', g: '', m: '', q2: 'E' })
+    setCalc(null)
     setDatosTecnicos({
       lados: [],
       angulos: [],
@@ -412,6 +507,13 @@ export function ExpedienteTab() {
     setError('')
   }
 
+  const rumboPreview = rumbo.desig && rumbo.q1 && rumbo.g && rumbo.q2
+    ? rumboCorto(rumbo.desig, rumbo.q1, parseInt(rumbo.g) || 0, parseInt(rumbo.m) || 0, rumbo.q2)
+    : null
+
+  const cierreOk = calc ? calc.error_total < 0.05 : false
+  const svgData = calc ? calcularPuntosSvg(calc.filas, 240) : null
+
   return (
     <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto' }} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       <div className="lg:col-span-8 flex flex-col gap-6">
@@ -422,7 +524,7 @@ export function ExpedienteTab() {
               Expediente de Mensura Integral
             </CardTitle>
             <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-              Crea tu expediente completo en un <strong>único documento Word (.docx)</strong> con Nota de Encabezamiento, Ubicación y Límites, Actas, Memoria y Planilla sincronizada.
+              Crea tu expediente completo en un <strong>único documento Word (.docx)</strong> con Nota de Encabezamiento, Geometría (hasta 20 lados), Ubicación, Actas, Memoria y Planilla de Coordenadas sincronizada.
             </p>
           </CardHeader>
           <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
@@ -431,29 +533,6 @@ export function ExpedienteTab() {
               <div style={{ background: '#E1F5EE', border: '0.5px solid #0F6E56', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#0F6E56', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Check style={{ width: '16px', height: '16px' }} />
                 {mensajeExito}
-              </div>
-            )}
-
-            {/* BANNER IMPORTAR DE SUPERFICIE */}
-            {superficieImportada && (
-              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '10px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ background: '#DCFCE7', padding: '8px', borderRadius: '8px', color: '#0F6E56' }}>
-                    <Sparkles style={{ width: '18px', height: '18px' }} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: '#166534' }}>
-                      Cálculo de Superficie disponible
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#15803D' }}>
-                      {superficieHaFormato(superficieImportada.calc.superficie_m2)} ({superficieImportada.calc.superficie_m2.toFixed(2)} m²) con {superficieImportada.calc.filas?.length || 0} lados.
-                    </div>
-                  </div>
-                </div>
-                <Button size="sm" onClick={importarCalculoSuperficie} style={{ background: '#0F6E56', color: 'white', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ArrowRight style={{ width: '14px', height: '14px' }} />
-                  Importar al Expediente
-                </Button>
               </div>
             )}
 
@@ -482,30 +561,15 @@ export function ExpedienteTab() {
 
             {/* 2. INMUEBLE & CATASTRO */}
             <div>
-              <div style={S.section}>2. Ubicación, Catastro & Extensión</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <F label="Ubicación del Inmueble *">
-                  <Input value={form.ubicacion} onChange={e => setF('ubicacion', e.target.value)} placeholder="Calle Las Heras 450" />
-                </F>
+              <div style={S.section}>2. Ubicación & Catastro</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <F label="Ubicación del Inmueble *">
+                    <Input value={form.ubicacion} onChange={e => setF('ubicacion', e.target.value)} placeholder="Calle Las Heras 450" />
+                  </F>
+                </div>
                 <F label="Departamento">
                   <Input value={form.departamento} onChange={e => setF('departamento', e.target.value)} placeholder="Capital" />
-                </F>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                <F label="Superficie s/M (m²)">
-                  <Input
-                    value={form.superficie_m2}
-                    onChange={e => handleSuperficieChange(e.target.value)}
-                    placeholder="624,16"
-                  />
-                </F>
-                <F label="Superficie en Letras">
-                  <Input
-                    value={form.superficie_letras}
-                    onChange={e => setF('superficie_letras', e.target.value)}
-                    placeholder="Seiscientos veinticuatro con dieciséis metros cuadrados"
-                  />
                 </F>
               </div>
 
@@ -525,10 +589,299 @@ export function ExpedienteTab() {
               </div>
             </div>
 
-            {/* 3. LINDEROS DINÁMICOS */}
+            {/* 3. GEOMETRÍA, POLÍGONO Y PLANILLA DE COORDENADAS (HASTA 20 LADOS) */}
+            <div style={{ background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-tertiary)', borderRadius: '12px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Calculator style={{ width: '18px', height: '18px', color: '#0F6E56' }} />
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-primary)' }}>
+                    3. Geometría, Polígono y Planilla de Coordenadas
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Vértices:</span>
+                  <div style={{ display: 'inline-flex', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-tertiary)', borderRadius: '6px', padding: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => cambiarFormatoVertices('numeros')}
+                      style={{
+                        padding: '3px 8px', fontSize: '11px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                        background: formatoVertices === 'numeros' ? '#0F6E56' : 'transparent',
+                        color: formatoVertices === 'numeros' ? 'white' : 'var(--color-text-secondary)',
+                      }}
+                    >
+                      1-2, 2-3…
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cambiarFormatoVertices('letras')}
+                      style={{
+                        padding: '3px 8px', fontSize: '11px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                        background: formatoVertices === 'letras' ? '#0F6E56' : 'transparent',
+                        color: formatoVertices === 'letras' ? 'white' : 'var(--color-text-secondary)',
+                      }}
+                    >
+                      A-B, B-C…
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Selector de cantidad de lados */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px', background: 'var(--color-background-primary)', padding: '10px 14px', borderRadius: '8px', border: '0.5px solid var(--color-border-tertiary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Label style={{ fontSize: '13px', fontWeight: '500' }}>Cantidad de lados (3 a 20):</Label>
+                  <select
+                    value={numLados}
+                    onChange={e => cambiarNumLados(parseInt(e.target.value))}
+                    style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--color-border-tertiary)', fontSize: '13px', fontWeight: 'bold', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)' }}
+                  >
+                    {Array.from({ length: 18 }, (_, i) => i + 3).map(n => (
+                      <option key={n} value={n}>{n} lados</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Accesos rápidos de lados */}
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginRight: '4px' }}>Rápido:</span>
+                  {[3, 4, 5, 6, 8, 10, 12, 16, 20].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => cambiarNumLados(n)}
+                      style={{
+                        padding: '3px 7px', fontSize: '11px', borderRadius: '4px',
+                        border: '1px solid var(--color-border-tertiary)',
+                        background: numLados === n ? '#0F6E5615' : 'transparent',
+                        color: numLados === n ? '#0F6E56' : 'var(--color-text-secondary)',
+                        fontWeight: numLados === n ? '600' : 'normal',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rumbo inicial */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <Compass style={{ width: '14px', height: '14px', color: '#0F6E56' }} />
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-primary)' }}>Rumbo Inicial de Referencia</span>
+                </div>
+                <div className="overflow-x-auto hide-scrollbar w-full pb-1">
+                  <div style={{ display: 'grid', gridTemplateColumns: '100px 70px 80px 70px 70px', gap: '8px', alignItems: 'flex-end', minWidth: '400px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <Label style={{ fontSize: '11px' }}>Designación</Label>
+                      <Input value={rumbo.desig} onChange={e => setRumbo(p => ({ ...p, desig: e.target.value }))} placeholder="1-2" style={{ fontSize: '12px' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <Label style={{ fontSize: '11px' }}>Cuad. 1</Label>
+                      <Select value={rumbo.q1} onValueChange={v => setRumbo(p => ({ ...p, q1: v }))}>
+                        <SelectTrigger style={{ fontSize: '12px', height: '36px' }}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="N">Norte</SelectItem>
+                          <SelectItem value="S">Sur</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <Label style={{ fontSize: '11px' }}>Grados °</Label>
+                      <Input type="number" value={rumbo.g} onChange={e => setRumbo(p => ({ ...p, g: e.target.value }))} placeholder="83" min={0} max={90} style={{ fontSize: '12px', textAlign: 'right' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <Label style={{ fontSize: '11px' }}>Minutos '</Label>
+                      <Input type="number" value={rumbo.m} onChange={e => setRumbo(p => ({ ...p, m: e.target.value }))} placeholder="16" min={0} max={59} style={{ fontSize: '12px', textAlign: 'right' }} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <Label style={{ fontSize: '11px' }}>Cuad. 2</Label>
+                      <Select value={rumbo.q2} onValueChange={v => setRumbo(p => ({ ...p, q2: v }))}>
+                        <SelectTrigger style={{ fontSize: '12px', height: '36px' }}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="E">Este</SelectItem>
+                          <SelectItem value="O">Oeste</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                {rumboPreview && (
+                  <div style={{ background: '#E1F5EE', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: '#0F6E56', marginTop: '8px' }}>
+                    {rumboPreview}
+                  </div>
+                )}
+              </div>
+
+              {/* Tabla interactiva de lados y ángulos */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-primary)' }}>
+                    Lados y Ángulos Interiores ({lados.length} vértices)
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                    ℹ️ Vértice 1 define el acimut inicial
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto hide-scrollbar w-full pb-2">
+                  <div style={{ minWidth: '420px', maxHeight: lados.length > 8 ? '360px' : 'auto', overflowY: lados.length > 8 ? 'auto' : 'visible', paddingRight: lados.length > 8 ? '4px' : '0' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '100px 95px 70px 65px 65px', gap: '6px', marginBottom: '6px', position: 'sticky', top: 0, background: 'var(--color-background-secondary)', zIndex: 2, paddingBottom: '4px' }}>
+                      {['Designación', 'Lado (m)', 'Ángulo °', 'min \'', 'seg "'].map(h => (
+                        <div key={h} style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text-secondary)', textAlign: 'center' }}>{h}</div>
+                      ))}
+                    </div>
+                    {lados.map((l, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '100px 95px 70px 65px 65px', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <Input
+                          value={l.desig}
+                          onChange={e => updateLado(i, 'desig', e.target.value)}
+                          style={{ fontSize: '12px', textAlign: 'center', fontWeight: '600', height: '34px' }}
+                        />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={l.lado}
+                          onChange={e => updateLado(i, 'lado', e.target.value)}
+                          placeholder="0.00"
+                          style={{ fontSize: '12px', textAlign: 'right', height: '34px' }}
+                        />
+                        <Input
+                          type="number"
+                          value={l.ang_g}
+                          onChange={e => updateLado(i, 'ang_g', e.target.value)}
+                          placeholder="90"
+                          min={0}
+                          max={359}
+                          style={{ fontSize: '12px', textAlign: 'right', height: '34px' }}
+                        />
+                        <Input
+                          type="number"
+                          value={l.ang_m}
+                          onChange={e => updateLado(i, 'ang_m', e.target.value)}
+                          placeholder="0"
+                          min={0}
+                          max={59}
+                          style={{ fontSize: '12px', textAlign: 'right', height: '34px' }}
+                        />
+                        <Input
+                          type="number"
+                          value={l.ang_s}
+                          onChange={e => updateLado(i, 'ang_s', e.target.value)}
+                          placeholder="0"
+                          min={0}
+                          max={59}
+                          style={{ fontSize: '12px', textAlign: 'right', height: '34px' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Botón calcular */}
+                <Button
+                  onClick={handleCalcularPoligono}
+                  style={{ background: '#0F6E56', color: 'white', width: '100%', marginTop: '6px' }}
+                >
+                  <Calculator style={{ width: '15px', height: '15px', marginRight: '6px' }} />
+                  Calcular Polígono y Actualizar Expediente
+                </Button>
+              </div>
+
+              {/* RESULTADOS DEL CÁLCULO GAUSS & PREVIEW SVG */}
+              {calc && (
+                <div style={{ background: 'var(--color-background-primary)', border: '1px solid var(--color-border-tertiary)', borderRadius: '10px', padding: '16px', marginTop: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {cierreOk ? (
+                        <>
+                          <CheckCircle style={{ width: '16px', height: '16px', color: '#1D9E75' }} />
+                          <span style={{ fontSize: '13px', color: '#1D9E75', fontWeight: '600' }}>Cierre geométrico aceptable</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle style={{ width: '16px', height: '16px', color: '#D85A30' }} />
+                          <span style={{ fontSize: '13px', color: '#D85A30', fontWeight: '600' }}>Error de cierre elevado — verificar mediciones</span>
+                        </>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                      Error total: <strong>{calc.error_total.toFixed(4)} m</strong> (Ex: {calc.error_x.toFixed(4)}, Ey: {calc.error_y.toFixed(4)})
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    {/* Superficie y Métricas */}
+                    <div className="md:col-span-7 flex flex-col gap-2">
+                      <div style={{ background: '#E1F5EE', borderRadius: '8px', padding: '12px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '11px', color: '#0F6E56', fontWeight: '600', textTransform: 'uppercase' }}>Superficie Resultante</div>
+                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#0F6E56', marginTop: '2px' }}>
+                          {calc.superficie_m2.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#0F6E56', fontWeight: '500' }}>
+                          {superficieHaFormato(calc.superficie_m2)}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#0F6E56', marginTop: '4px', fontStyle: 'italic' }}>
+                          {superficieM2Letras(calc.superficie_m2)}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: '6px', fontSize: '12px' }}>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>Perímetro total:</span>
+                        <strong>{calc.perimetro.toFixed(2).replace('.', ',')} m</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: '6px', fontSize: '12px' }}>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>Vértices calculados:</span>
+                        <strong>{calc.filas.length} tramos</strong>
+                      </div>
+                    </div>
+
+                    {/* Vista Gráfica SVG */}
+                    <div className="md:col-span-5 flex flex-col items-center justify-center p-2 bg-[var(--color-background-secondary)] rounded-lg border border-[var(--color-border-tertiary)]">
+                      <div style={{ fontSize: '10px', fontWeight: '600', color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        Geometría del Lote
+                      </div>
+                      {svgData && (
+                        <svg width={svgData.boxSize} height={svgData.boxSize} viewBox={`0 0 ${svgData.boxSize} ${svgData.boxSize}`} className="max-w-full h-auto">
+                          {/* Polígono relleno */}
+                          <polygon
+                            points={svgData.pointsStr}
+                            fill="#0F6E5615"
+                            stroke="#0F6E56"
+                            strokeWidth="2"
+                            strokeLinejoin="round"
+                          />
+                          {/* Vértices */}
+                          {svgData.projected.map((p, i) => (
+                            <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#0F6E56" stroke="#FFFFFF" strokeWidth="1" />
+                          ))}
+                          {/* Etiquetas de vértices */}
+                          {svgData.labels.map((l, i) => (
+                            <text
+                              key={i}
+                              x={l.x}
+                              y={l.y}
+                              fontSize="10"
+                              fontWeight="600"
+                              fill="var(--color-text-primary)"
+                              textAnchor="middle"
+                            >
+                              {l.name}
+                            </text>
+                          ))}
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 4. LINDEROS DINÁMICOS */}
             <div>
               <div style={{ ...S.section, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>3. Límites y Linderos del Inmueble</span>
+                <span>4. Límites y Linderos del Inmueble</span>
                 <span style={{ fontSize: '11px', textTransform: 'none', color: 'var(--color-text-secondary)', fontWeight: 'normal' }}>
                   Impacta automáticamente en Ubicación, Acta de Mensura y Ausencia
                 </span>
@@ -574,11 +927,12 @@ export function ExpedienteTab() {
               </div>
             </div>
 
-            {/* 4. COMITENTES */}
+            {/* 5. COMITENTES */}
             <div>
               <div style={{ ...S.section, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>4. Comitentes</span>
+                <span>5. Comitentes</span>
                 <button
+                  type="button"
                   onClick={agregarComitente}
                   style={{ background: '#0F6E56', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
@@ -596,6 +950,7 @@ export function ExpedienteTab() {
                       </span>
                       {comitentes.length > 1 && (
                         <button
+                          type="button"
                           onClick={() => eliminarComitente(i)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D85A30', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
                         >
@@ -625,10 +980,10 @@ export function ExpedienteTab() {
               </div>
             </div>
 
-            {/* 5. ACTAS Y NOTIFICACIÓN */}
+            {/* 6. ACTAS Y NOTIFICACIÓN */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <div style={S.section}>5. Acta de Mensura</div>
+                <div style={S.section}>6. Acta de Mensura</div>
                 <div className="grid grid-cols-2 gap-3">
                   <F label="Fecha (dd/mm/aaaa)">
                     <Input value={form.fecha} onChange={e => setF('fecha', e.target.value)} placeholder="01/12/2026" />
@@ -652,18 +1007,20 @@ export function ExpedienteTab() {
               </div>
             </div>
 
-            {/* 6. LINDEROS NO NOTIFICADOS */}
+            {/* 7. LINDEROS NO NOTIFICADOS */}
             <div>
               <div style={{ ...S.section, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Linderos no notificados (Acta de Ausencia)</span>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button
+                    type="button"
                     onClick={() => sincronizarLinderosAusentes(false)}
                     style={{ background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-tertiary)', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                   >
                     Copiar Sur, Este, Oeste
                   </button>
                   <button
+                    type="button"
                     onClick={() => sincronizarLinderosAusentes(true)}
                     style={{ background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-tertiary)', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                   >
@@ -675,7 +1032,7 @@ export function ExpedienteTab() {
                 value={form.linderos_ausentes}
                 onChange={e => setF('linderos_ausentes', e.target.value)}
                 placeholder="SUR: A1-43162-1: Llovet Rafael.&#10;ESTE: A1-3370-1: Suc. Espinoza Pedro Pascual.&#10;OESTE: A1-40614-1: Espinoza Juan Ramon..."
-                rows={4}
+                rows={3}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--color-border-tertiary)', fontSize: '13px', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', resize: 'vertical' }}
               />
               <p style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
