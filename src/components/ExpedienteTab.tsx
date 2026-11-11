@@ -10,7 +10,7 @@ import {
   FileText, Download, Plus, Trash2, ArrowRight, RotateCcw, Check,
   Calculator, AlertCircle, CheckCircle, RefreshCw, Compass
 } from 'lucide-react'
-import { TEMPLATE_EXPEDIENTE_UNIFICADO_B64 } from '@/lib/expedienteTemplate'
+import { TEMPLATE_EXPEDIENTE_UNIFICADO_B64, ROW_TEMPLATE_XML } from '@/lib/expedienteTemplate'
 import {
   cap, metrosLetras, anguloLetras,
   superficieM2Letras, superficieHaFormato,
@@ -24,6 +24,20 @@ import {
 } from '@/lib/gauss'
 
 // ─── DOCX ENGINE ──────────────────────────────────────────────────────────────
+function escapeXml(str: any): string {
+  if (str === null || str === undefined) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function makeParagraphXml(text: string): string {
+  return `<w:p><w:pPr><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Century Gothic" w:hAnsi="Century Gothic"/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`
+}
+
 function base64ToUint8Array(b64: string): Uint8Array {
   const bin = atob(b64)
   const arr = new Uint8Array(bin.length)
@@ -36,6 +50,45 @@ async function generarExpedienteDocx(campos: Record<string, any>): Promise<Uint8
   const Docxtemplater = (await import('docxtemplater')).default
   const data = base64ToUint8Array(TEMPLATE_EXPEDIENTE_UNIFICADO_B64)
   const zip = new PizZip(data)
+
+  // 1. Table rows for Planilla de Coordenadas
+  let rowsXml = ''
+  const colKeys = ['desig', 'lado', 'ai_g', 'ai_m', 'ai_s', 'ac_g', 'ac_m', 'ac_s', 'dx', 'dy', 'dx_c', 'dy_c', 'x', 'y']
+  if (campos.filas && campos.filas.length > 0) {
+    rowsXml = campos.filas.map((f: any) => {
+      let r = ROW_TEMPLATE_XML
+      for (const k of colKeys) {
+        const val = f[k] !== undefined && f[k] !== null ? String(f[k]) : '—'
+        r = r.replaceAll(`{{${k}}}`, escapeXml(val))
+      }
+      return r
+    }).join('')
+  } else {
+    let r = ROW_TEMPLATE_XML
+    for (const k of colKeys) {
+      r = r.replaceAll(`{{${k}}}`, '—')
+    }
+    rowsXml = r
+  }
+
+  // 2. Memoria descriptiva Lados and Angulos paragraphs
+  const ladosXml = campos.lados && campos.lados.length > 0
+    ? campos.lados.map((l: any) => makeParagraphXml(l.linea)).join('')
+    : makeParagraphXml('—')
+
+  const angulosXml = campos.angulos && campos.angulos.length > 0
+    ? campos.angulos.map((a: any) => makeParagraphXml(a.linea)).join('')
+    : makeParagraphXml('—')
+
+  // 3. Inject rows, lados and angulos into document.xml
+  let docXml = zip.files['word/document.xml'].asText()
+    .replace('<!--TABLE_ROWS_PLACEHOLDER-->', rowsXml)
+    .replace('<!--LADOS_PARAGRAPHS_PLACEHOLDER-->', ladosXml)
+    .replace('<!--ANGULOS_PARAGRAPHS_PLACEHOLDER-->', angulosXml)
+
+  zip.file('word/document.xml', docXml)
+
+  // 4. Render all remaining text placeholders with Docxtemplater
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
@@ -43,6 +96,7 @@ async function generarExpedienteDocx(campos: Record<string, any>): Promise<Uint8
     nullGetter: () => ''
   })
   doc.render(campos)
+
   return doc.getZip().generate({ type: 'uint8array', compression: 'DEFLATE' })
 }
 
