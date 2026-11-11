@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  collection, doc, updateDoc, addDoc, serverTimestamp
+  collection, doc, updateDoc, addDoc, serverTimestamp, deleteField
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { Button } from '@/components/ui/button'
@@ -12,20 +12,23 @@ import {
 } from '@/components/ui/select'
 import {
   MapPin, Upload, Layers, CheckCircle2, Clock, AlertTriangle,
-  ZoomIn, Navigation, Search, Trash2, FileText, X, Check, ShieldCheck
+  ZoomIn, Navigation, Search, Trash2, FileText, X, Check, ShieldCheck, Plus
 } from 'lucide-react'
-import { procesarArchivoGis, ParsedGisResult, LatLng } from '@/lib/gisParser'
+import { procesarArchivoGis, ParsedGisResult, LatLng, ParsedFeature } from '@/lib/gisParser'
 
 // ─── TIPOS ────────────────────────────────────────────────────────────────────
 type EstadoObra = 'en_curso' | 'completado' | 'pendiente'
 
+export type LatLngObj = { lat: number; lng: number }
+export type SerializedBounds = { minLat: number; minLng: number; maxLat: number; maxLng: number }
+
 export type ObraGeometria = {
   type: 'Polygon' | 'LineString' | 'Point'
-  coordinates: LatLng[]
+  coordinates: LatLngObj[] | LatLng[]
   areaM2?: number
   areaHa?: number
   perimeterM?: number
-  bounds?: [LatLng, LatLng]
+  bounds?: SerializedBounds | [LatLng, LatLng]
   fileName?: string
 }
 
@@ -45,6 +48,45 @@ export type Obra = {
 interface MapaTabProps {
   obras: Obra[]
   userId: string
+}
+
+// ─── HELPERS DE CONVERSIÓN LEAFLET / FIRESTORE ────────────────────────────────
+export function toLatLngTuples(coords: any): LatLng[] {
+  if (!Array.isArray(coords)) return []
+  return coords.map(pt => {
+    if (Array.isArray(pt)) {
+      return [Number(pt[0]), Number(pt[1])] as LatLng
+    }
+    if (typeof pt === 'object' && pt !== null) {
+      const lat = Number(pt.lat ?? pt.latitude ?? 0)
+      const lng = Number(pt.lng ?? pt.lon ?? pt.longitude ?? 0)
+      return [lat, lng] as LatLng
+    }
+    return [0, 0] as LatLng
+  }).filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0))
+}
+
+export function toLeafletBounds(b: any): [LatLng, LatLng] | undefined {
+  if (!b) return undefined
+  if (Array.isArray(b) && b.length >= 2 && Array.isArray(b[0]) && Array.isArray(b[1])) {
+    const minLat = Number(b[0][0])
+    const minLng = Number(b[0][1])
+    const maxLat = Number(b[1][0])
+    const maxLng = Number(b[1][1])
+    if (!isNaN(minLat) && !isNaN(minLng) && !isNaN(maxLat) && !isNaN(maxLng)) {
+      return [[minLat, minLng], [maxLat, maxLng]]
+    }
+  }
+  if (typeof b === 'object' && 'minLat' in b) {
+    const minLat = Number(b.minLat)
+    const minLng = Number(b.minLng)
+    const maxLat = Number(b.maxLat)
+    const maxLng = Number(b.maxLng)
+    if (!isNaN(minLat) && !isNaN(minLng) && !isNaN(maxLat) && !isNaN(maxLng)) {
+      return [[minLat, minLng], [maxLat, maxLng]]
+    }
+  }
+  return undefined
 }
 
 const ESTADO_COLORES: Record<EstadoObra, { fill: string; stroke: string; label: string }> = {
@@ -80,6 +122,7 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
   const [loadingFile, setLoadingFile] = useState(false)
   const [errorFile, setErrorFile] = useState('')
   const [gisResult, setGisResult] = useState<ParsedGisResult | null>(null)
+  const [featureSeleccionadaIndex, setFeatureSeleccionadaIndex] = useState(0)
   const [asignarModo, setAsignarModo] = useState<'existente' | 'nueva'>('existente')
   const [obraSeleccionadaId, setObraSeleccionadaId] = useState<string>('')
   
@@ -187,11 +230,13 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
       group.clearLayers()
 
       const obrasFiltradas = obras.filter(o => {
-        if (!o.geometria || !o.geometria.coordinates || o.geometria.coordinates.length === 0) return false
+        if (!o.geometria || !o.geometria.coordinates) return false
+        const coords = toLatLngTuples(o.geometria.coordinates)
+        if (coords.length === 0) return false
         if (filtroEstado !== 'todos' && o.estado !== filtroEstado) return false
         if (busqueda.trim()) {
           const q = busqueda.toLowerCase()
-          return o.cliente.toLowerCase().includes(q) || o.descripcion.toLowerCase().includes(q)
+          return (o.cliente || '').toLowerCase().includes(q) || (o.descripcion || '').toLowerCase().includes(q)
         }
         return true
       })
@@ -200,24 +245,26 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
 
       obrasFiltradas.forEach(obra => {
         const geom = obra.geometria!
-        const cfg = ESTADO_COLORES[obra.estado ?? 'pendiente']
+        const coords = toLatLngTuples(geom.coordinates)
+        if (coords.length === 0) return
+        const cfg = ESTADO_COLORES[obra.estado ?? 'pendiente'] || ESTADO_COLORES.pendiente
 
         let layer: any = null
 
-        if (geom.type === 'Polygon' && geom.coordinates.length >= 3) {
-          layer = L.polygon(geom.coordinates, {
+        if (geom.type === 'Polygon' && coords.length >= 3) {
+          layer = L.polygon(coords, {
             color: cfg.stroke,
             weight: 2.5,
             fillColor: cfg.fill,
             fillOpacity: 0.45,
           })
-        } else if (geom.type === 'LineString' && geom.coordinates.length >= 2) {
-          layer = L.polyline(geom.coordinates, {
+        } else if (geom.type === 'LineString' && coords.length >= 2) {
+          layer = L.polyline(coords, {
             color: cfg.stroke,
             weight: 3.5,
           })
-        } else if (geom.coordinates.length > 0) {
-          layer = L.marker(geom.coordinates[0])
+        } else if (coords.length > 0) {
+          layer = L.marker(coords[0])
         }
 
         if (layer) {
@@ -298,28 +345,33 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
       }
 
       setGisResult(result)
+      setFeatureSeleccionadaIndex(0)
 
       // Cargar valores por defecto para nueva obra
       const primerFeature = result.features[0]
       setNuevaCliente(primerFeature.name || file.name.replace(/\.[^/.]+$/, ''))
-      setNuevaDescripcion(`Levantamiento de ${primerFeature.name || 'parcela'} (${result.totalAreaM2} m²)`)
+      setNuevaDescripcion(`Levantamiento de ${primerFeature.name || 'parcela'} (${primerFeature.areaM2 || result.totalAreaM2} m²)`)
       setNuevaPresupuesto('')
 
       // Dibujar vista previa en color cian brillante en el mapa
       const L = (await import('leaflet')).default
       if (previewLayerRef.current) {
         previewLayerRef.current.clearLayers()
-        result.features.forEach(f => {
-          if (f.type === 'Polygon' && f.coordinates.length >= 3) {
-            const poly = L.polygon(f.coordinates, {
-              color: '#06B6D4',
-              weight: 3,
+        result.features.forEach((f, idx) => {
+          const coords = toLatLngTuples(f.coordinates)
+          if (f.type === 'Polygon' && coords.length >= 3) {
+            const poly = L.polygon(coords, {
+              color: idx === 0 ? '#06B6D4' : '#64748B',
+              weight: idx === 0 ? 3.5 : 2,
               fillColor: '#06B6D4',
-              fillOpacity: 0.35,
+              fillOpacity: idx === 0 ? 0.35 : 0.15,
               dashArray: '4, 4',
             })
             poly.bindTooltip(`Previsualización: ${f.name} (${f.areaM2} m²)`).openTooltip()
             previewLayerRef.current.addLayer(poly)
+          } else if (f.type === 'LineString' && coords.length >= 2) {
+            const line = L.polyline(coords, { color: '#06B6D4', weight: 3 })
+            previewLayerRef.current.addLayer(line)
           }
         })
       }
@@ -337,6 +389,20 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
     }
   }
 
+  async function cambiarFeatureSeleccionada(idx: number) {
+    if (!gisResult || !gisResult.features[idx]) return
+    setFeatureSeleccionadaIndex(idx)
+    const f = gisResult.features[idx]
+    setNuevaCliente(f.name || gisResult.fileName.replace(/\.[^/.]+$/, ''))
+    setNuevaDescripcion(`Levantamiento de ${f.name || 'parcela'} (${f.areaM2} m²)`)
+
+    // Centrar mapa en la feature seleccionada
+    const map = mapInstanceRef.current
+    if (map && f.bounds) {
+      map.flyToBounds(f.bounds, { padding: [40, 40], maxZoom: 18 })
+    }
+  }
+
   // ─── GUARDAR GEOMETRÍA EN LA OBRA ────────────────────────────────────────────
   async function handleGuardarGeometria() {
     if (!gisResult || gisResult.features.length === 0) return
@@ -344,15 +410,34 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
     setErrorFile('')
 
     try {
-      const feat = gisResult.features[0]
-      const geomData: ObraGeometria = {
-        type: feat.type,
-        coordinates: feat.coordinates,
-        areaM2: feat.areaM2,
-        areaHa: feat.areaHa,
-        perimeterM: feat.perimeterM,
-        bounds: feat.bounds,
-        fileName: gisResult.fileName,
+      const feat = gisResult.features[featureSeleccionadaIndex] || gisResult.features[0]
+      if (!feat || !feat.coordinates || feat.coordinates.length === 0) {
+        throw new Error('La parcela seleccionada no contiene coordenadas válidas.')
+      }
+
+      // Guardar coordenadas como array de objetos { lat, lng } para que Firestore lo acepte sin error de arrays anidados
+      const coordsParaFirestore: LatLngObj[] = feat.coordinates.map(pt => ({
+        lat: Number(pt[0]),
+        lng: Number(pt[1]),
+      }))
+
+      const boundsParaFirestore: SerializedBounds | null = feat.bounds ? {
+        minLat: Number(feat.bounds[0][0]),
+        minLng: Number(feat.bounds[0][1]),
+        maxLat: Number(feat.bounds[1][0]),
+        maxLng: Number(feat.bounds[1][1]),
+      } : null
+
+      const geomData: Record<string, any> = {
+        type: feat.type || 'Polygon',
+        coordinates: coordsParaFirestore,
+        areaM2: Number(feat.areaM2) || 0,
+        areaHa: Number(feat.areaHa) || 0,
+        perimeterM: Number(feat.perimeterM) || 0,
+        fileName: gisResult.fileName || 'archivo',
+      }
+      if (boundsParaFirestore) {
+        geomData.bounds = boundsParaFirestore
       }
 
       if (asignarModo === 'existente') {
@@ -369,16 +454,16 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
         }
         await addDoc(collection(db, 'obras'), {
           cliente: nuevaCliente.trim(),
-          descripcion: nuevaDescripcion.trim() || 'Mensura georreferenciada',
+          descripcion: (nuevaDescripcion || '').trim() || 'Mensura georreferenciada',
           presupuesto: parseFloat(nuevaPresupuesto) || 0,
           fechaInicio: new Date().toISOString().split('T')[0],
-          estado: nuevaEstado,
+          estado: nuevaEstado || 'en_curso',
           notas: `Geometría importada desde ${gisResult.fileName} (${feat.areaM2} m²)`,
-          userId,
+          userId: userId || '',
           createdAt: serverTimestamp(),
           geometria: geomData,
         })
-        setMensajeExito(`¡Nueva obra creada y geolocalizada en el mapa!`)
+        setMensajeExito(`¡Nueva obra "${nuevaCliente.trim()}" creada y geolocalizada con éxito en el mapa!`)
       }
 
       // Limpiar previsualización
@@ -395,12 +480,12 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
   async function desvincularGeometria(obraId: string) {
     try {
       await updateDoc(doc(db, 'obras', obraId), {
-        geometria: null,
+        geometria: deleteField(),
       })
-      setMensajeExito('Polígono desvinculado de la obra.')
+      setMensajeExito('Polígono desvinculado de la obra con éxito.')
       setTimeout(() => setMensajeExito(''), 3000)
     } catch (e: any) {
-      alert('Error al desvincular: ' + e.message)
+      setErrorFile('Error al desvincular: ' + e.message)
     }
   }
 
@@ -512,6 +597,33 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
             </p>
           </CardHeader>
           <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {gisResult.features.length > 1 && (
+              <div style={{ background: '#E0F2FE', padding: '10px 12px', borderRadius: '8px', border: '1px solid #BAE6FD' }}>
+                <Label style={{ fontSize: '11px', fontWeight: '600', color: '#0369A1', marginBottom: '4px', display: 'block' }}>
+                  El archivo contiene {gisResult.features.length} parcelas. Elegí cuál deseás registrar:
+                </Label>
+                <select
+                  value={featureSeleccionadaIndex}
+                  onChange={e => cambiarFeatureSeleccionada(parseInt(e.target.value, 10))}
+                  style={{
+                    width: '100%',
+                    padding: '6px 10px',
+                    fontSize: '12px',
+                    borderRadius: '6px',
+                    border: '1px solid #94A3B8',
+                    background: 'white',
+                    color: '#0F172A',
+                  }}
+                >
+                  {gisResult.features.map((f, idx) => (
+                    <option key={idx} value={idx}>
+                      {f.name} — {f.type} ({f.areaM2.toLocaleString('es-AR')} m² / {f.areaHa} Ha.)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', fontWeight: '600' }}>¿Cómo deseas registrarlo?</span>
               <div style={{ display: 'inline-flex', background: 'white', borderRadius: '6px', border: '1px solid #CBD5E1', padding: '2px' }}>
@@ -794,10 +906,14 @@ export function MapaTab({ obras, userId }: MapaTabProps) {
                         onClick={() => {
                           const map = mapInstanceRef.current
                           if (map && obra.geometria) {
-                            if (obra.geometria.bounds) {
-                              map.flyToBounds(obra.geometria.bounds, { padding: [40, 40], maxZoom: 18 })
-                            } else if (obra.geometria.coordinates?.[0]) {
-                              map.flyTo(obra.geometria.coordinates[0], 17)
+                            const b = toLeafletBounds(obra.geometria.bounds)
+                            if (b) {
+                              map.flyToBounds(b, { padding: [40, 40], maxZoom: 18 })
+                            } else {
+                              const coords = toLatLngTuples(obra.geometria.coordinates)
+                              if (coords.length > 0) {
+                                map.flyTo(coords[0], 17)
+                              }
                             }
                           }
                         }}

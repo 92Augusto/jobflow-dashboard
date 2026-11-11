@@ -120,6 +120,7 @@ function Dashboard({ user }: { user: User }) {
   const [dbError, setDbError] = useState('')
   const [mostrarAviso, setMostrarAviso] = useState(false)
   const [ocultarMontos, setOcultarMontos] = useState(false)
+  const [activeTab, setActiveTab] = useState('obras')
   const [timerRef] = useState<{ logout: any; aviso: any }>({ logout: null, aviso: null })
 
   const handleLogout = useCallback(async () => {
@@ -222,7 +223,7 @@ function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="obras">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-4 flex overflow-x-auto justify-start w-full snap-x snap-mandatory hide-scrollbar">
             <TabsTrigger value="obras" className="snap-start shrink-0">Obras</TabsTrigger>
             <TabsTrigger value="mapa" className="snap-start shrink-0">🗺️ Mapa</TabsTrigger>
@@ -246,7 +247,12 @@ function Dashboard({ user }: { user: User }) {
             {obras.length === 0
               ? <p style={S.empty}>No hay obras cargadas todavía.</p>
               : obras.map(o => (
-                <ObraCard key={o.id} obra={o} pagos={pagos.filter(p => p.obraId === o.id)} />
+                <ObraCard
+                  key={o.id}
+                  obra={o}
+                  pagos={pagos.filter(p => p.obraId === o.id)}
+                  onVerEnMapa={() => setActiveTab('mapa')}
+                />
               ))
             }
           </TabsContent>
@@ -291,7 +297,7 @@ function Dashboard({ user }: { user: User }) {
 }
 
 // ─── OBRA CARD ────────────────────────────────────────────────────────────────
-function ObraCard({ obra, pagos }: { obra: Obra; pagos: Pago[] }) {
+function ObraCard({ obra, pagos, onVerEnMapa }: { obra: Obra; pagos: Pago[]; onVerEnMapa?: () => void }) {
   const cobrado = pagos.reduce((s, p) => s + p.monto, 0)
   const saldo = obra.presupuesto - cobrado
   return (
@@ -328,10 +334,28 @@ function ObraCard({ obra, pagos }: { obra: Obra; pagos: Pago[] }) {
       </div>
       {obra.notas && <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{obra.notas}</div>}
       {obra.geometria && (
-        <div style={{ marginTop: '8px', fontSize: '11px', color: '#0F6E56', display: 'flex', alignItems: 'center', gap: '4px', background: '#E1F5EE', padding: '3px 8px', borderRadius: '6px', width: 'fit-content' }}>
+        <button
+          type="button"
+          onClick={onVerEnMapa}
+          style={{
+            marginTop: '8px',
+            fontSize: '11px',
+            color: '#0F6E56',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            background: '#E1F5EE',
+            border: '1px solid #A3E0D0',
+            padding: '3px 8px',
+            borderRadius: '6px',
+            width: 'fit-content',
+            cursor: onVerEnMapa ? 'pointer' : 'default',
+          }}
+          title="Ver este lote en la pestaña Mapa"
+        >
           <span>🗺️ Lote georreferenciado:</span>
           <strong>{obra.geometria.areaM2 ? `${obra.geometria.areaM2.toLocaleString('es-AR')} m² (${obra.geometria.areaHa} Ha)` : 'Ver en mapa'}</strong>
-        </div>
+        </button>
       )}
     </div>
   )

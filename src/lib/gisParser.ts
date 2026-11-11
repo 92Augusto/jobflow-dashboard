@@ -214,26 +214,43 @@ export function autodetectarYReproyectar(x: number, y: number, anclaRef?: LatLng
 }
 
 // ─── PARSER KML ───────────────────────────────────────────────────────────────
+function getElementsByLocalName(parent: Document | Element, tagName: string): Element[] {
+  const target = tagName.toLowerCase()
+  const all = Array.from(parent.getElementsByTagName('*'))
+  return all.filter(el => {
+    const local = (el.localName || el.nodeName || '').toLowerCase().replace(/^.*:/, '')
+    return local === target
+  })
+}
+
 export function parseKmlString(kmlText: string, fileName = 'archivo.kml'): ParsedGisResult {
   const parser = new DOMParser()
   const xmlDoc = parser.parseFromString(kmlText, 'text/xml')
 
-  const placemarks = Array.from(xmlDoc.getElementsByTagName('Placemark'))
-  const features: ParsedFeature[] = []
+  const parserErrors = getElementsByLocalName(xmlDoc, 'parsererror')
+  if (parserErrors.length > 0) {
+    throw new Error('El archivo KML no contiene XML válido o está dañado.')
+  }
 
+  let placemarks = getElementsByLocalName(xmlDoc, 'placemark')
+  if (placemarks.length === 0) {
+    placemarks = [xmlDoc.documentElement]
+  }
+
+  const features: ParsedFeature[] = []
   let totalArea = 0
   let allCoords: LatLng[] = []
 
   for (const pm of placemarks) {
-    const nameEl = pm.getElementsByTagName('name')[0]
-    const descEl = pm.getElementsByTagName('description')[0]
+    const nameEl = getElementsByLocalName(pm, 'name')[0]
+    const descEl = getElementsByLocalName(pm, 'description')[0]
     const name = nameEl?.textContent?.trim() || `Parcela ${features.length + 1}`
     const description = descEl?.textContent?.trim() || ''
 
     // 1. Polígonos
-    const polygons = Array.from(pm.getElementsByTagName('Polygon'))
+    const polygons = getElementsByLocalName(pm, 'polygon')
     for (const poly of polygons) {
-      const coordEls = poly.getElementsByTagName('coordinates')
+      const coordEls = getElementsByLocalName(poly, 'coordinates')
       if (coordEls.length > 0) {
         const rawCoords = coordEls[0].textContent || ''
         const coords = parseKmlCoordinateString(rawCoords)
@@ -259,10 +276,41 @@ export function parseKmlString(kmlText: string, fileName = 'archivo.kml'): Parse
       }
     }
 
+    // 1.b Fallback para LinearRing sin etiqueta Polygon
+    if (polygons.length === 0) {
+      const rings = getElementsByLocalName(pm, 'linearring')
+      for (const ring of rings) {
+        const coordEls = getElementsByLocalName(ring, 'coordinates')
+        if (coordEls.length > 0) {
+          const rawCoords = coordEls[0].textContent || ''
+          const coords = parseKmlCoordinateString(rawCoords)
+          if (coords.length >= 3) {
+            const areaM2 = calcularAreaM2(coords)
+            const perimetroM = calcularPerimetroM(coords, true)
+            const { center, bounds } = calcularCentroYBounds(coords)
+            allCoords = allCoords.concat(coords)
+            totalArea += areaM2
+
+            features.push({
+              name,
+              description,
+              type: 'Polygon',
+              coordinates: coords,
+              center,
+              areaM2,
+              areaHa: Math.round((areaM2 / 10000) * 10000) / 10000,
+              perimeterM: perimetroM,
+              bounds,
+            })
+          }
+        }
+      }
+    }
+
     // 2. Líneas
-    const lineStrings = Array.from(pm.getElementsByTagName('LineString'))
+    const lineStrings = getElementsByLocalName(pm, 'linestring')
     for (const ls of lineStrings) {
-      const coordEls = ls.getElementsByTagName('coordinates')
+      const coordEls = getElementsByLocalName(ls, 'coordinates')
       if (coordEls.length > 0) {
         const coords = parseKmlCoordinateString(coordEls[0].textContent || '')
         if (coords.length >= 2) {
@@ -286,9 +334,9 @@ export function parseKmlString(kmlText: string, fileName = 'archivo.kml'): Parse
     }
 
     // 3. Puntos
-    const points = Array.from(pm.getElementsByTagName('Point'))
+    const points = getElementsByLocalName(pm, 'point')
     for (const pt of points) {
-      const coordEls = pt.getElementsByTagName('coordinates')
+      const coordEls = getElementsByLocalName(pt, 'coordinates')
       if (coordEls.length > 0) {
         const coords = parseKmlCoordinateString(coordEls[0].textContent || '')
         if (coords.length > 0) {
@@ -309,6 +357,33 @@ export function parseKmlString(kmlText: string, fileName = 'archivo.kml'): Parse
     }
   }
 
+  // Si no se encontraron dentro de Placemarks, buscar cualquier <coordinates> en el documento
+  if (features.length === 0) {
+    const allCoordEls = getElementsByLocalName(xmlDoc, 'coordinates')
+    for (let idx = 0; idx < allCoordEls.length; idx++) {
+      const rawCoords = allCoordEls[idx].textContent || ''
+      const coords = parseKmlCoordinateString(rawCoords)
+      if (coords.length >= 3) {
+        const areaM2 = calcularAreaM2(coords)
+        const perimetroM = calcularPerimetroM(coords, true)
+        const { center, bounds } = calcularCentroYBounds(coords)
+        allCoords = allCoords.concat(coords)
+        totalArea += areaM2
+        features.push({
+          name: `Parcela ${features.length + 1}`,
+          description: '',
+          type: 'Polygon',
+          coordinates: coords,
+          center,
+          areaM2,
+          areaHa: Math.round((areaM2 / 10000) * 10000) / 10000,
+          perimeterM: perimetroM,
+          bounds,
+        })
+      }
+    }
+  }
+
   const { bounds } = calcularCentroYBounds(allCoords)
 
   return {
@@ -323,16 +398,27 @@ export function parseKmlString(kmlText: string, fileName = 'archivo.kml'): Parse
 
 function parseKmlCoordinateString(coordStr: string): LatLng[] {
   const points: LatLng[] = []
-  const clean = coordStr.trim().replace(/\s+/g, ' ')
-  const pairs = clean.split(' ')
+  if (!coordStr) return points
 
-  for (const pair of pairs) {
+  const normalized = coordStr.replace(/\s*,\s*/g, ',').trim()
+  const rawPairs = normalized.split(/\s+/)
+
+  for (const pair of rawPairs) {
+    if (!pair) continue
     const parts = pair.split(',').map(s => parseFloat(s.trim()))
     if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      // KML format is longitude, latitude, altitude
-      const lng = parts[0]
-      const lat = parts[1]
-      points.push([lat, lng])
+      let lng = parts[0]
+      let lat = parts[1]
+
+      if (Math.abs(lng) <= 90 && Math.abs(lat) > 90) {
+        const tmp = lng
+        lng = lat
+        lat = tmp
+      }
+
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        points.push([lat, lng])
+      }
     }
   }
   return points
